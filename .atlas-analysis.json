@@ -1,0 +1,159 @@
+{
+  "projectType": "framework",
+  "projectName": "Aeros",
+  "projectDescription": "A lightweight, high-performance MVC framework for PHP development",
+  "theme": "aspen",
+  "primaryColor": "#FF6B35",
+  "lightColor": "#FFB84D",
+  "darkColor": "#C44D2C",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/service-container",
+              "concepts/lifecycle"
+            ]
+          },
+          {
+            "group": "Routing",
+            "pages": [
+              "routing/basic-routing",
+              "routing/route-parameters",
+              "routing/middleware",
+              "routing/groups"
+            ]
+          },
+          {
+            "group": "Controllers",
+            "pages": [
+              "controllers/basic-controllers",
+              "controllers/resource-controllers",
+              "controllers/dependency-injection"
+            ]
+          },
+          {
+            "group": "Models & Database",
+            "pages": [
+              "database/configuration",
+              "database/query-builder",
+              "database/models",
+              "database/relationships",
+              "database/migrations"
+            ]
+          },
+          {
+            "group": "Request & Response",
+            "pages": [
+              "http/requests",
+              "http/responses",
+              "http/validation",
+              "http/cookies"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/caching",
+              "advanced/queues-jobs",
+              "advanced/events",
+              "advanced/scheduling",
+              "advanced/logging"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/make-commands",
+              "cli/database-commands",
+              "cli/cache-commands"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/router",
+              "api/controller",
+              "api/model",
+              "api/request",
+              "api/response"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/cache",
+              "api/queue",
+              "api/event",
+              "api/security"
+            ]
+          },
+          {
+            "group": "Helper Functions",
+            "pages": [
+              "api/helpers"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Lightweight MVC architecture with minimal overhead",
+    "Built-in ORM with relationship support (HasOne, HasMany, BelongsTo, etc.)",
+    "Powerful routing system with middleware support",
+    "CLI scaffolding commands for rapid development",
+    "Database migrations and seeding",
+    "Queue and job processing system",
+    "Event-driven architecture",
+    "Cron job scheduling",
+    "Built-in caching layer",
+    "JWT authentication support"
+  ],
+  "publicApiSurface": [
+    "Router::get()",
+    "Router::post()",
+    "Router::put()",
+    "Router::patch()",
+    "Router::delete()",
+    "Model::find()",
+    "Model::create()",
+    "Model::update()",
+    "Model::delete()",
+    "Request::get()",
+    "Request::post()",
+    "Response::json()",
+    "Response::type()",
+    "app()",
+    "view()",
+    "config()",
+    "env()",
+    "cache()",
+    "db()",
+    "queue()",
+    "event()"
+  ]
+}
