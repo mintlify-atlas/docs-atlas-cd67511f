@@ -107,6 +107,56 @@ php aeros scheduler
 * * * * * /usr/bin/php /var/www/html/aeros scheduler 1>> /var/www/html/app/logs/error.log 2>&1
 ```
 
+### run:worker
+
+Starts queue workers to process background jobs:
+
+```bash
+php aeros run:worker [workers...] [options]
+```
+
+**Arguments:**
+- `workers` - Space-separated list of specific workers to run
+
+**Options:**
+- `-a, --all` - Start all registered workers
+- `--stop` - Stop running workers
+
+**Examples:**
+```bash
+# Start all workers
+php aeros run:worker --all
+
+# Start specific workers
+php aeros run:worker EmailWorker NotificationWorker
+
+# Stop workers
+php aeros run:worker --stop
+```
+
+### run:cron
+
+Manually runs a specific cron job or all cron jobs:
+
+```bash
+php aeros run:cron [name] [options]
+```
+
+**Arguments:**
+- `name` - Optional name of a specific cron job to run
+
+**Options:**
+- `-a, --all` - Run all scheduled cron jobs
+
+**Examples:**
+```bash
+# Run all cron jobs
+php aeros run:cron --all
+
+# Run a specific cron job
+php aeros run:cron CacheCleanup
+```
+
 ## Creating Custom Commands
 
 You can create your own CLI commands using `make:command`:

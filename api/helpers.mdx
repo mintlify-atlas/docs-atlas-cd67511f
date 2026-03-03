@@ -388,9 +388,26 @@ function session(): \Aeros\Src\Classes\Session
 
 **Example:**
 ```php
-session()->set('user_id', 123);
-$userId = session()->get('user_id');
-session()->destroy();
+// Set session data using magic methods
+session()->user_id = 123;
+session()->username = 'john_doe';
+
+// Get session data
+$userId = session()->user_id;
+
+// Check if session variable exists
+if (isset(session()->user_id)) {
+    // Variable exists
+}
+
+// Remove session variable
+unset(session()->user_id);
+
+// Renovate (destroy and restart) session
+session()->renovate();
+
+// Close session
+session()->close();
 ```
 
 ---
