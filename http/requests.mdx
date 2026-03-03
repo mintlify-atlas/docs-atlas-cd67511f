@@ -1,0 +1,287 @@
+---
+title: HTTP Requests
+description: Working with HTTP requests in Aeros
+---
+
+The `Request` class handles incoming HTTP requests and provides methods to access request data, headers, cookies, and more.
+
+## Accessing Request Data
+
+### Getting Request Payload
+
+Retrieve data from different HTTP methods:
+
+```php
+use Aeros\Src\Classes\Request;
+
+$request = new Request();
+
+// Get payload from current request method
+$data = $request->getPayload();
+
+// Get payload from specific method
+$getData = $request->getPayload('GET');
+$postData = $request->getPayload('POST');
+$putData = $request->getPayload('PUT');
+```
+
+### Accessing Specific Fields
+
+Use magic methods to access request fields:
+
+```php
+// Access field as property
+$email = $request->email;
+$username = $request->username;
+
+// Check if field exists
+if (isset($request->email)) {
+    // Process email
+}
+```
+
+## Filtering Request Data
+
+### Only Specific Fields
+
+Retrieve only specific fields from the request:
+
+```php
+$request->only(['name', 'email']);
+$request->only('username');
+```
+
+### Exclude Fields
+
+Exclude specific fields from the request:
+
+```php
+$request->except(['password', 'token']);
+$request->except('csrf_token');
+```
+
+## Request Properties
+
+### URI and URL
+
+```php
+// Get current URI
+$uri = $request->getURI();
+
+// Set URL for outgoing request
+$request->url('https://api.example.com/endpoint');
+```
+
+### HTTP Method
+
+```php
+// Get current method
+$method = $request->getMethod();
+
+// Get HTTP method (works in CLI mode)
+$httpMethod = $request->getHttpMethod();
+
+// Set method for outgoing request
+$request->method('POST');
+```
+
+### Query String
+
+```php
+// Get query string
+$query = $request->getQuery();
+
+// Set query string
+$request->query('page=1&limit=10');
+```
+
+## Headers
+
+### Getting Headers
+
+```php
+// Get all headers
+$headers = $request->getHeaders();
+
+// Get specific header value
+$contentType = $request->getHeaderValue('Content-Type');
+$authToken = $request->getHeaderValue('Authorization');
+```
+
+### Setting Headers
+
+```php
+// Set headers for outgoing request
+$request->headers([
+    'Content-Type' => 'application/json',
+    'Authorization' => 'Bearer token123',
+    'X-Custom-Header' => 'value'
+]);
+```
+
+### Check Request Type
+
+```php
+// Check if request is JSON
+if ($request->isJson()) {
+    $data = json_decode($request->getPayload(), true);
+}
+```
+
+## Cookies
+
+### Getting Cookies
+
+```php
+// Get all cookies
+$cookies = $request->getCookies();
+
+// Access via property
+$sessionId = $request->cookies['session_id'] ?? null;
+```
+
+### Setting Cookies
+
+```php
+// Set cookies for outgoing request
+$request->cookies([
+    'session_id' => 'abc123',
+    'user_pref' => 'dark_mode'
+]);
+```
+
+<Info>
+Cookies have a maximum size limit (default: 4096 bytes). Exceeding this limit will throw a `ValueError`.
+</Info>
+
+## Domain and Subdomain
+
+### Getting Domain Information
+
+```php
+// Get domain
+$domain = $request->getDomain();
+
+// Get subdomain
+$subdomain = $request->getSubdomain();
+```
+
+### Setting Domain
+
+```php
+// Set domain
+$request->domain('example.com');
+
+// Set subdomain
+$request->subdomain('api');
+```
+
+## Making Outgoing Requests
+
+### Basic Request
+
+```php
+$request = new Request();
+
+$response = $request
+    ->url('https://api.example.com/users')
+    ->method('GET')
+    ->send();
+```
+
+### POST Request with Payload
+
+```php
+$response = $request
+    ->url('https://api.example.com/users')
+    ->method('POST')
+    ->setPayload([
+        'name' => 'John Doe',
+        'email' => 'john@example.com'
+    ])
+    ->send();
+```
+
+### Request with Custom Headers
+
+```php
+$response = $request
+    ->url('https://api.example.com/data')
+    ->headers([
+        'Authorization' => 'Bearer token123',
+        'Accept' => 'application/json'
+    ])
+    ->send();
+```
+
+## SSL Configuration
+
+<Warning>
+Disabling SSL verification is a security risk and should only be used in development environments.
+</Warning>
+
+```php
+// Enable SSL verification (default)
+$request->ssl(true);
+
+// Disable SSL verification (development only)
+$request->ssl(false);
+```
+
+<Note>
+SSL verification cannot be disabled in production environments. Attempting to do so will throw an exception.
+</Note>
+
+## Advanced Usage
+
+### Merging Payload
+
+```php
+// Replace entire payload
+$request->setPayload(['name' => 'John'], false);
+
+// Merge with existing payload
+$request->setPayload(['email' => 'john@example.com'], true);
+```
+
+### Magic Methods
+
+```php
+// Set field
+$request->username = 'johndoe';
+
+// Get field
+$username = $request->username;
+
+// Check if set
+if (isset($request->username)) {
+    // Field exists
+}
+
+// Unset field
+unset($request->password);
+```
+
+## Security Features
+
+### Automatic Input Sanitization
+
+All input data is automatically sanitized to remove:
+- Null bytes
+- Excess whitespace
+
+### URL Length Limits
+
+```php
+// URLs exceeding max length throw ValueError
+// Default: 2048 characters (configurable)
+$request->url($longUrl);
+```
+
+### Header Count Limits
+
+```php
+// Maximum header count is enforced
+// Default: 50 headers (configurable)
+$request->headers($manyHeaders);
+```

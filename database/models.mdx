@@ -1,0 +1,470 @@
+---
+title: Models
+description: Work with database records using Aeros models
+---
+
+## Overview
+
+Models are PHP classes that represent database tables and provide methods for creating, reading, updating, and deleting records (CRUD operations).
+
+## Defining Models
+
+### Basic Model
+
+Extend the `Aeros\Src\Classes\Model` base class:
+
+```php
+namespace App\Models;
+
+use Aeros\Src\Classes\Model;
+
+class User extends Model
+{
+    protected $table = 'users';
+    protected $primary = 'id';
+    protected $fillable = ['name', 'email', 'status'];
+}
+```
+
+### Model Properties
+
+<ParamField path="table" type="string" default="null">
+  The database table name. Auto-detected from class name if not set.
+</ParamField>
+
+<ParamField path="primary" type="string" default="'id'">
+  The primary key column name.
+</ParamField>
+
+<ParamField path="fillable" type="array" default="[]">
+  Columns that can be mass-assigned (for security).
+</ParamField>
+
+<ParamField path="guarded" type="array" default="[]">
+  Columns that are protected from mass-assignment.
+</ParamField>
+
+### Auto-Detected Table Names
+
+If `$table` is not defined, the model automatically uses the pluralized, lowercase class name:
+
+```php
+class User extends Model { }     // → users
+class Post extends Model { }     // → posts
+class Category extends Model { } // → categories
+```
+
+## Creating Records
+
+### Create Single Record
+
+```php
+$user = User::create([
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'status' => 'active'
+]);
+
+echo $user->id; // Auto-generated ID
+```
+
+### Create Multiple Records
+
+```php
+$users = User::createMany([
+    ['name' => 'Alice', 'email' => 'alice@example.com'],
+    ['name' => 'Bob', 'email' => 'bob@example.com'],
+    ['name' => 'Charlie', 'email' => 'charlie@example.com']
+]);
+
+// Returns array of created User models
+```
+
+## Finding Records
+
+### Find by ID
+
+```php
+// Find user with id = 1
+$user = User::find(1);
+
+// Returns User model or null
+if ($user) {
+    echo $user->name;
+}
+```
+
+### Find by Conditions
+
+```php
+// Single condition (key = value)
+$user = User::find([
+    ['email', 'john@example.com']
+]);
+
+// Multiple conditions with operators
+$users = User::find([
+    ['status', '=', 'active'],
+    ['role', '=', 'admin']
+]);
+
+// With OR conditions
+$users = User::find([
+    ['status', '=', 'active', 'OR'],
+    ['status', '=', 'pending', 'OR'],
+    ['status', '=', 'verified']
+]);
+```
+
+### Find with Specific Columns
+
+```php
+// Only fetch id, name, email
+$user = User::find(1, ['id', 'name', 'email']);
+```
+
+### Condition Formats
+
+The `find()` method supports multiple condition formats:
+
+```php
+// Format 1: [column, value]
+['email', 'test@example.com']  // WHERE email = ?
+
+// Format 2: [column, operator, value]
+['age', '>', 18]  // WHERE age > ?
+
+// Format 3: [column, operator, value, logical]
+['status', '=', 'active', 'OR']  // WHERE status = ? OR
+
+// Format 4: Associative array
+[['status' => 'active']]  // WHERE status = ?
+```
+
+## Updating Records
+
+### Update by Instance
+
+```php
+$user = User::find(1);
+$user->name = 'Jane Doe';
+$user->email = 'jane@example.com';
+$user->save();
+```
+
+### Update with Method
+
+```php
+// Update specific records
+User::update(
+    ['status' => 'inactive'],  // New values
+    [['role', '=', 'guest']]   // WHERE conditions
+)->commit();
+```
+
+### Update and Commit
+
+Changes are staged until `commit()` is called:
+
+```php
+$user = User::find(1);
+$user->status = 'verified';
+$result = $user->save(); // Calls commit() internally
+```
+
+## Deleting Records
+
+### Delete Instance
+
+```php
+$user = User::find(1);
+$user->delete()->commit();
+```
+
+### Delete by Condition
+
+```php
+// Delete all inactive users
+User::delete([
+    ['status', '=', 'inactive']
+])->commit();
+```
+
+## Property Access
+
+### Getting Values
+
+```php
+$user = User::find(1);
+
+echo $user->id;
+echo $user->name;
+echo $user->email;
+```
+
+### Setting Values
+
+```php
+$user = User::find(1);
+
+// Set individual properties
+$user->name = 'New Name';
+$user->email = 'new@example.com';
+
+// Save changes
+$user->save();
+```
+
+### Protected Properties
+
+<Warning>
+  Primary keys and guarded properties cannot be updated
+</Warning>
+
+```php
+class User extends Model
+{
+    protected $primary = 'id';
+    protected $guarded = ['role', 'permissions'];
+}
+
+$user = User::find(1);
+
+// ❌ Throws InvalidArgumentException
+$user->id = 999;
+
+// ❌ Throws InvalidArgumentException
+$user->role = 'admin';
+```
+
+## Fillable vs Guarded
+
+### Using Fillable (Whitelist)
+
+```php
+class User extends Model
+{
+    protected $fillable = ['name', 'email', 'bio'];
+}
+
+// ✅ Only name, email, bio can be set
+User::create([
+    'name' => 'John',
+    'email' => 'john@example.com',
+    'bio' => 'Developer',
+    'role' => 'admin'  // Ignored (not in fillable)
+]);
+```
+
+### Using Guarded (Blacklist)
+
+```php
+class User extends Model
+{
+    protected $guarded = ['role', 'permissions'];
+}
+
+// ✅ All columns except role and permissions can be set
+User::create([
+    'name' => 'John',
+    'email' => 'john@example.com',
+    'role' => 'admin'  // Ignored (in guarded)
+]);
+```
+
+## Eager Loading
+
+Prevent N+1 query problems by eager loading relationships:
+
+```php
+// Load user with their plans
+$user = User::with('plans')->find(1);
+
+// Access relationship without additional query
+foreach ($user->plans as $plan) {
+    echo $plan->name;
+}
+
+// Load multiple relationships
+$user = User::with(['plans', 'profile', 'roles'])->find(1);
+```
+
+See [Relationships](/database/relationships) for more details.
+
+## Model Methods
+
+### Instance Methods
+
+<ResponseField name="save()" type="mixed">
+  Save changes to the current model instance
+  ```php
+  $user->name = 'Updated';
+  $user->save();
+  ```
+</ResponseField>
+
+<ResponseField name="commit()" type="mixed">
+  Commit pending INSERT, UPDATE, or DELETE operations
+  ```php
+  $user->delete()->commit();
+  ```
+</ResponseField>
+
+<ResponseField name="getTableNameFromModel()" type="string">
+  Get the table name for this model
+  ```php
+  echo $user->getTableNameFromModel(); // 'users'
+  ```
+</ResponseField>
+
+<ResponseField name="getPrimaryKey()" type="string">
+  Get the primary key column name
+  ```php
+  echo $user->getPrimaryKey(); // 'id'
+  ```
+</ResponseField>
+
+### Static Methods
+
+<ResponseField name="find()" type="Model|array|null">
+  Find records by ID or conditions
+  ```php
+  User::find(1);
+  User::find([['status', 'active']]);
+  ```
+</ResponseField>
+
+<ResponseField name="create()" type="Model">
+  Create a new record
+  ```php
+  User::create(['name' => 'John']);
+  ```
+</ResponseField>
+
+<ResponseField name="createMany()" type="array">
+  Create multiple records at once
+  ```php
+  User::createMany([...]);
+  ```
+</ResponseField>
+
+<ResponseField name="update()" type="Model">
+  Update records matching conditions
+  ```php
+  User::update(['status' => 'active'], [['role', 'user']]);
+  ```
+</ResponseField>
+
+<ResponseField name="delete()" type="Model">
+  Delete records matching conditions
+  ```php
+  User::delete([['status', 'inactive']]);
+  ```
+</ResponseField>
+
+<ResponseField name="with()" type="Model">
+  Eager load relationships
+  ```php
+  User::with('plans')->find(1);
+  ```
+</ResponseField>
+
+## Error Handling
+
+### Invalid Property
+
+```php
+$user = User::find(1);
+
+try {
+    echo $user->nonexistent;
+} catch (InvalidArgumentException $e) {
+    // Property "nonexistent" is not mapped to any column on "users" table
+}
+```
+
+### Primary Key Update
+
+```php
+try {
+    $user->id = 999;
+} catch (InvalidArgumentException $e) {
+    // Primary key "id" cannot be updated
+}
+```
+
+### Unknown Column
+
+```php
+try {
+    $user->unknown_field = 'value';
+} catch (InvalidArgumentException $e) {
+    // Property "unknown_field" is not mapped to any column on "users" table
+}
+```
+
+## Advanced Usage
+
+### Custom Table Name
+
+```php
+class User extends Model
+{
+    protected $table = 'app_users';  // Use custom table name
+}
+```
+
+### Custom Primary Key
+
+```php
+class User extends Model
+{
+    protected $primary = 'user_id';  // Use custom primary key
+}
+```
+
+### Combining with Query Builder
+
+```php
+$users = User::query()
+    ->where('status', 'active')
+    ->orderBy('created_at', 'DESC')
+    ->limit(10)
+    ->get();
+```
+
+See [Query Builder](/database/query-builder) for more details.
+
+## Best Practices
+
+<Check>
+  **Always define fillable or guarded** to prevent mass-assignment vulnerabilities
+</Check>
+
+<Check>
+  **Use eager loading** to avoid N+1 query problems
+</Check>
+
+<Check>
+  **Validate data** before creating or updating records
+</Check>
+
+<Check>
+  **Use transactions** for operations that modify multiple tables
+</Check>
+
+<Warning>
+  **Never trust user input** - always validate and sanitize
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Define relationships between models
+  </Card>
+  
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Build complex database queries
+  </Card>
+</CardGroup>

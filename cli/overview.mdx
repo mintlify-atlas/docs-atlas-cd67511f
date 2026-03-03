@@ -1,0 +1,129 @@
+---
+title: CLI Overview
+description: Introduction to the Aeros command-line interface and REPL
+---
+
+Aeros provides a powerful command-line interface (CLI) built on Symfony Console components. The CLI tool, called `aeros`, allows you to scaffold code, manage your database, run the application, and perform various development tasks.
+
+## The Aeros REPL
+
+The REPL (Read-Eval-Print Loop) is the entry point for all CLI commands. It's a PHP script located at the root of your Aeros project.
+
+### Starting the REPL
+
+```bash
+php aeros
+```
+
+This command displays all available commands and their descriptions.
+
+### Getting Help
+
+Get detailed information about any command using the `--help` flag:
+
+```bash
+php aeros <command> --help
+```
+
+<Info>
+All Aeros CLI commands are powered by Symfony Console. Learn more in the [Symfony Console documentation](https://symfony.com/doc/current/components/console.html).
+</Info>
+
+## Available Command Categories
+
+Aeros CLI commands are organized into several categories:
+
+<CardGroup cols={2}>
+  <Card title="Make Commands" icon="hammer" href="/cli/make-commands">
+    Scaffold controllers, models, migrations, and more
+  </Card>
+  <Card title="Database Commands" icon="database" href="/cli/database-commands">
+    Manage migrations, seeders, and database setup
+  </Card>
+  <Card title="Cache Commands" icon="memory" href="/cli/cache-commands">
+    Clear and manage cache connections
+  </Card>
+  <Card title="Run Commands" icon="play">
+    Start the application, workers, and cron scheduler
+  </Card>
+</CardGroup>
+
+## Command Structure
+
+Aeros commands follow a consistent pattern:
+
+```bash
+php aeros <command:subcommand> [arguments] [options]
+```
+
+### Arguments
+
+Arguments are required or optional values passed to commands:
+
+```bash
+php aeros make:controller UserController
+```
+
+### Options
+
+Options modify command behavior and are prefixed with `--` or `-`:
+
+```bash
+php aeros make:worker EmailWorker --all
+php aeros run:app -p  # -p is short for --production
+```
+
+## Run Commands
+
+Commands for starting and managing your application:
+
+### run:app
+
+Starts the application with environment setup, database checks, migrations, cache validation, and worker initialization.
+
+```bash
+php aeros run:app
+```
+
+**Options:**
+- `-p, --production` - Run in production environment
+- `-s, --staging` - Run in staging environment
+- `-d, --development` - Run in development environment (default)
+
+<Tip>
+The `run:app` command performs a complete application bootstrap including database connectivity checks, running migrations, warming up the cache, and starting workers.
+</Tip>
+
+### scheduler
+
+Runs all scheduled cron jobs. This command is typically called from the system crontab:
+
+```bash
+php aeros scheduler
+```
+
+**Crontab Example:**
+```bash
+* * * * * /usr/bin/php /var/www/html/aeros scheduler 1>> /var/www/html/app/logs/error.log 2>&1
+```
+
+## Creating Custom Commands
+
+You can create your own CLI commands using `make:command`:
+
+```bash
+php aeros make:command SendEmails
+```
+
+This generates a new command class in `app/commands/` that you can customize. See [Make Commands](/cli/make-commands) for more details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scaffolding Commands" icon="code" href="/cli/make-commands">
+    Learn about make:* commands for code generation
+  </Card>
+  <Card title="Database Management" icon="database" href="/cli/database-commands">
+    Explore migration and seeding commands
+  </Card>
+</CardGroup>

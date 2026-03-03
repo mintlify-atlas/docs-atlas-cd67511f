@@ -1,0 +1,387 @@
+---
+title: Security
+description: API reference for the Aeros Security class
+---
+
+The `Security` class provides essential security features including CSRF protection and Bearer token authentication.
+
+## Namespace
+
+```php
+Aeros\Src\Classes\Security
+```
+
+## Methods
+
+### csrf
+
+Creates a hidden input field with a CSRF token. This token helps validate if a request is authorized.
+
+```php
+public function csrf()
+```
+
+**Returns:** HTML string containing a hidden input field
+
+#### Usage Example
+
+```php
+// In your view/template
+<form method="POST" action="/users">
+    <?= security()->csrf() ?>
+
+    <input type="text" name="name" required>
+    <input type="email" name="email" required>
+    <button type="submit">Create User</button>
+</form>
+```
+
+#### Generated HTML
+
+```html
+<input type="hidden" id="csrf_token" name="csrf_token" value="a1b2c3d4-e5f6-7890..." />
+```
+
+### validateCsrfToken
+
+Validates a CSRF token from the request against the session token.
+
+```php
+public function validateCsrfToken(?string $token): bool
+```
+
+<ParamField path="token" type="string|null">
+  The CSRF token from the request to validate.
+</ParamField>
+
+**Returns:** `true` if token is valid, `false` otherwise
+
+#### Usage Example
+
+```php
+// In your controller or middleware
+class UserController
+{
+    public function create()
+    {
+        $token = request()->csrf_token;
+
+        if (!security()->validateCsrfToken($token)) {
+            return response()->json([
+                'error' => 'Invalid CSRF token'
+            ], 403);
+        }
+
+        // Process the request...
+    }
+}
+```
+
+#### Middleware Example
+
+```php
+class CsrfMiddleware
+{
+    public function handle()
+    {
+        // Skip CSRF check for GET, HEAD, OPTIONS
+        if (in_array(request()->method, ['GET', 'HEAD', 'OPTIONS'])) {
+            return true;
+        }
+
+        $token = security()->getCsrfTokenFromRequest();
+
+        if (!security()->validateCsrfToken($token)) {
+            return response()->json(['error' => 'CSRF token mismatch'], 419);
+        }
+
+        return true;
+    }
+}
+```
+
+### getBearerToken
+
+Extracts the Bearer token from the Authorization header.
+
+```php
+public function getBearerToken(): ?string
+```
+
+**Returns:** Bearer token string or `null` if not found
+
+#### Usage Example
+
+```php
+// In your API authentication middleware
+class ApiAuthMiddleware
+{
+    public function handle()
+    {
+        $token = security()->getBearerToken();
+
+        if (!$token) {
+            return response()->json([
+                'error' => 'Authorization token required'
+            ], 401);
+        }
+
+        // Validate token
+        $user = $this->validateToken($token);
+
+        if (!$user) {
+            return response()->json([
+                'error' => 'Invalid token'
+            ], 401);
+        }
+
+        // Attach user to request
+        request()->user = $user;
+
+        return true;
+    }
+}
+```
+
+#### Client Request Example
+
+```bash
+curl -X GET https://api.example.com/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### regenerateCsrfToken
+
+Regenerates the CSRF token. Should be called after successful form submission to prevent token reuse.
+
+```php
+public function regenerateCsrfToken(): string
+```
+
+**Returns:** The new CSRF token
+
+#### Usage Example
+
+```php
+class UserController
+{
+    public function create()
+    {
+        // Validate CSRF token
+        if (!security()->validateCsrfToken(request()->csrf_token)) {
+            return response()->json(['error' => 'Invalid token'], 403);
+        }
+
+        // Process the request
+        $userId = db()->table('users')->insert([
+            'name' => request()->name,
+            'email' => request()->email,
+        ]);
+
+        // Regenerate token after successful submission
+        security()->regenerateCsrfToken();
+
+        return response()->json([
+            'success' => true,
+            'user_id' => $userId,
+        ]);
+    }
+}
+```
+
+### getCsrfTokenFromRequest
+
+Retrieves the CSRF token from either the request body or headers.
+
+```php
+public function getCsrfTokenFromRequest(): ?string
+```
+
+**Returns:** CSRF token string or `null` if not found
+
+#### Supported Sources
+
+1. **Request Body** - Checks `request()->csrf_token`
+2. **Header** - Checks `X-CSRF-TOKEN` header
+
+#### Usage Example
+
+```php
+// In middleware
+class CsrfMiddleware
+{
+    public function handle()
+    {
+        // Automatically checks both body and headers
+        $token = security()->getCsrfTokenFromRequest();
+
+        if (!security()->validateCsrfToken($token)) {
+            return response()->json([
+                'error' => 'CSRF token missing or invalid'
+            ], 419);
+        }
+
+        return true;
+    }
+}
+```
+
+#### AJAX Request Example
+
+```javascript
+// JavaScript - sending CSRF token in header
+fetch('/api/users', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('#csrf_token').value
+    },
+    body: JSON.stringify({
+        name: 'John Doe',
+        email: 'john@example.com'
+    })
+});
+```
+
+## CSRF Protection Flow
+
+### 1. Token Generation
+
+CSRF tokens are automatically generated when a session is created:
+
+```php
+// In session initialization
+session()->csrf_token = \Ramsey\Uuid\Uuid::uuid4()->toString();
+```
+
+### 2. Include Token in Forms
+
+```php
+<form method="POST" action="/submit">
+    <?= security()->csrf() ?>
+    <!-- form fields -->
+</form>
+```
+
+### 3. Validate Token
+
+```php
+// In your controller or middleware
+$token = security()->getCsrfTokenFromRequest();
+
+if (!security()->validateCsrfToken($token)) {
+    return response()->json(['error' => 'CSRF validation failed'], 419);
+}
+```
+
+### 4. Regenerate After Use
+
+```php
+// After successful form submission
+security()->regenerateCsrfToken();
+```
+
+## Bearer Token Authentication Flow
+
+### 1. Client Obtains Token
+
+```php
+class AuthController
+{
+    public function login()
+    {
+        // Validate credentials
+        $user = db()->table('users')
+            ->where('email', request()->email)
+            ->first();
+
+        if (!$user || !password_verify(request()->password, $user->password)) {
+            return response()->json(['error' => 'Invalid credentials'], 401);
+        }
+
+        // Generate token (using JWT or similar)
+        $token = $this->generateToken($user);
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+        ]);
+    }
+}
+```
+
+### 2. Client Includes Token in Requests
+
+```bash
+curl -X GET https://api.example.com/profile \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+### 3. Server Validates Token
+
+```php
+class ApiMiddleware
+{
+    public function handle()
+    {
+        $token = security()->getBearerToken();
+
+        if (!$token) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // Validate and decode token
+        $user = $this->verifyToken($token);
+
+        if (!$user) {
+            return response()->json(['error' => 'Invalid token'], 401);
+        }
+
+        request()->user = $user;
+        return true;
+    }
+}
+```
+
+## Best Practices
+
+### CSRF Protection
+
+- Always include CSRF tokens in forms that modify data (POST, PUT, DELETE)
+- Regenerate tokens after successful form submissions
+- Use the `X-CSRF-TOKEN` header for AJAX requests
+- Implement CSRF middleware for automatic validation
+- Exclude read-only operations (GET, HEAD, OPTIONS) from CSRF checks
+
+### Bearer Token Authentication
+
+- Use HTTPS to prevent token interception
+- Implement token expiration
+- Store tokens securely on the client side
+- Validate tokens on every protected endpoint
+- Include proper error messages for debugging
+- Consider using JWT (JSON Web Tokens) for stateless authentication
+
+## Helper Function
+
+The framework provides a global `security()` helper function:
+
+```php
+// Generate CSRF field
+echo security()->csrf();
+
+// Validate CSRF token
+if (security()->validateCsrfToken(request()->csrf_token)) {
+    // Process request
+}
+
+// Get Bearer token
+$token = security()->getBearerToken();
+```
+
+## Related
+
+- Session management for CSRF token storage
+- Request object for accessing tokens from client
+- Response helpers for returning authentication errors
+- Middleware for automatic security validation

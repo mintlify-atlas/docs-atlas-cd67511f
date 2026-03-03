@@ -1,0 +1,477 @@
+---
+title: Request
+description: Handle incoming HTTP requests and make outgoing requests
+---
+
+The `Request` class handles both incoming HTTP requests and outgoing cURL requests. It provides a fluent interface for working with request data, headers, cookies, and validation.
+
+## Accessing the request
+
+Access the current request instance:
+
+```php
+$request = app()->request;
+```
+
+## HTTP method information
+
+### getMethod()
+
+Get the HTTP method of the current request.
+
+```php
+$method = app()->request->getMethod(); // 'GET', 'POST', etc.
+```
+
+<ResponseField name="return" type="string">
+  Returns the HTTP method (GET, POST, PUT, PATCH, DELETE)
+</ResponseField>
+
+### getHttpMethod()
+
+Retrieve the HTTP method from the server.
+
+```php
+$method = app()->request->getHttpMethod();
+```
+
+<ResponseField name="return" type="string">
+  Returns the HTTP method from $_SERVER['REQUEST_METHOD']
+</ResponseField>
+
+## URI and URL methods
+
+### getURI()
+
+Get the current request URI.
+
+```php
+$uri = app()->request->getURI(); // '/users/123'
+```
+
+<ResponseField name="return" type="string">
+  Returns the current URI without query string
+</ResponseField>
+
+### url()
+
+Set the target URL for outgoing requests.
+
+```php
+app()->request->url('https://api.example.com/users');
+```
+
+<ParamField path="url" type="string" required>
+  The target URL
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+### getQuery()
+
+Get the query string from the request.
+
+```php
+$query = app()->request->getQuery(); // 'page=1&limit=10'
+```
+
+<ResponseField name="return" type="string">
+  Returns the query string
+</ResponseField>
+
+## Domain and subdomain
+
+### getDomain()
+
+Get the current domain.
+
+```php
+$domain = app()->request->getDomain(); // 'example.com'
+```
+
+<ResponseField name="return" type="string|null">
+  Returns the current domain or null
+</ResponseField>
+
+### getSubdomain()
+
+Get the current subdomain.
+
+```php
+$subdomain = app()->request->getSubdomain(); // 'api'
+```
+
+<ResponseField name="return" type="string|null">
+  Returns the current subdomain or null
+</ResponseField>
+
+## Request payload
+
+### getPayload()
+
+Retrieve the payload data based on HTTP method.
+
+```php
+// Get POST data
+$data = app()->request->getPayload();
+
+// Get data from specific method
+$getData = app()->request->getPayload('GET');
+$postData = app()->request->getPayload('POST');
+$files = app()->request->getPayload('FILES');
+```
+
+<ParamField path="from" type="string" default="null">
+  HTTP method to retrieve payload from (defaults to current method)
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Returns associative array of payload data
+</ResponseField>
+
+### setPayload()
+
+Set the payload data for outgoing requests.
+
+```php
+app()->request
+    ->setPayload(['name' => 'John', 'email' => 'john@example.com'])
+    ->send();
+
+// Merge with existing payload
+app()->request->setPayload(['age' => 30], merge: true);
+```
+
+<ParamField path="data" type="mixed" required>
+  Data to set as payload
+</ParamField>
+
+<ParamField path="merge" type="bool" default="false">
+  If true, merges with existing payload
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+## Headers
+
+### getHeaders()
+
+Get all request headers.
+
+```php
+$headers = app()->request->getHeaders();
+```
+
+<ResponseField name="return" type="array">
+  Returns array of headers
+</ResponseField>
+
+### headers()
+
+Set request headers.
+
+```php
+app()->request->headers([
+    'Authorization' => 'Bearer token123',
+    'Content-Type' => 'application/json'
+]);
+```
+
+<ParamField path="headers" type="array" required>
+  Associative array of headers
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+### getHeaderValue()
+
+Get a specific header value by name.
+
+```php
+$authHeader = app()->request->getHeaderValue('Authorization');
+```
+
+<ParamField path="name" type="string" required>
+  Header name (case-insensitive)
+</ParamField>
+
+<ResponseField name="return" type="string|null">
+  Returns header value or null if not found
+</ResponseField>
+
+## Cookies
+
+### getCookies()
+
+Retrieve all cookies.
+
+```php
+$cookies = app()->request->getCookies();
+```
+
+<ResponseField name="return" type="array">
+  Returns array of cookies
+</ResponseField>
+
+### cookies()
+
+Set cookies for the request.
+
+```php
+app()->request->cookies([
+    'session_id' => 'abc123',
+    'user_pref' => 'dark_mode'
+]);
+```
+
+<ParamField path="cookies" type="array" default="[]">
+  Associative array of cookies
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+## Validation
+
+### validate()
+
+Validate and filter payload against defined rules.
+
+```php
+$validated = app()->request->validate([
+    'email' => FILTER_VALIDATE_EMAIL,
+    'age' => FILTER_VALIDATE_INT,
+    'name' => FILTER_SANITIZE_STRING
+]);
+```
+
+<ParamField path="filters" type="array" required>
+  Filter rules (same format as filter_var_array)
+</ParamField>
+
+<ParamField path="throwOnError" type="bool" default="true">
+  If true, throws exception on validation failure
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Returns filtered and validated payload
+</ResponseField>
+
+### validateWith()
+
+Quick validation with predefined rules.
+
+```php
+$validated = app()->request->validateWith([
+    'email' => 'email',
+    'age' => 'int',
+    'website' => 'url',
+    'active' => 'boolean'
+]);
+```
+
+<ParamField path="rules" type="array" required>
+  Array of field => rule mappings
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Returns validated data
+</ResponseField>
+
+### validateField()
+
+Validate a single field from the payload.
+
+```php
+$email = app()->request->validateField('email', FILTER_VALIDATE_EMAIL);
+```
+
+<ParamField path="field" type="string" required>
+  Field name to validate
+</ParamField>
+
+<ParamField path="filter" type="int|array" required>
+  Filter constant or array with filter options
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Returns filtered value or null if validation fails
+</ResponseField>
+
+### validationRules()
+
+Get available validation rule patterns.
+
+```php
+$rules = Request::validationRules();
+// Returns: ['email' => FILTER_VALIDATE_EMAIL, 'url' => FILTER_VALIDATE_URL, ...]
+```
+
+<ResponseField name="return" type="array">
+  Returns array of predefined validation rules
+</ResponseField>
+
+## Filtering data
+
+### only()
+
+Get only specific keys from the request.
+
+```php
+$data = app()->request->only(['name', 'email']);
+```
+
+<ParamField path="keys" type="string|array" required>
+  Field name(s) to include
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+### except()
+
+Get all keys except specified ones.
+
+```php
+$data = app()->request->except(['password', 'password_confirmation']);
+```
+
+<ParamField path="keys" type="string|array" required>
+  Field name(s) to exclude
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+## Making outgoing requests
+
+### method()
+
+Set the HTTP method for outgoing requests.
+
+```php
+app()->request->method('POST');
+```
+
+<ParamField path="method" type="string" default="">
+  HTTP method (GET, POST, PUT, PATCH, DELETE)
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+### ssl()
+
+Enable or disable SSL verification.
+
+```php
+app()->request->ssl(false); // Disable SSL verification (development only)
+```
+
+<ParamField path="ssl" type="bool" required>
+  Enable/disable SSL verification
+</ParamField>
+
+<ResponseField name="return" type="Request">
+  Returns Request instance for method chaining
+</ResponseField>
+
+### send()
+
+Send the cURL request.
+
+```php
+$response = app()->request
+    ->url('https://api.example.com/users')
+    ->method('POST')
+    ->setPayload(['name' => 'John'])
+    ->headers(['Authorization' => 'Bearer token'])
+    ->send();
+```
+
+<ResponseField name="return" type="string|bool">
+  Returns response data or error message
+</ResponseField>
+
+## Utility methods
+
+### isJson()
+
+Check if the request content type is JSON.
+
+```php
+if (app()->request->isJson()) {
+    $data = json_decode($input, true);
+}
+```
+
+<ResponseField name="return" type="bool">
+  Returns true if Content-Type is application/json
+</ResponseField>
+
+## Examples
+
+### Handle form submission
+
+```php
+class UserController extends Controller
+{
+    public function store()
+    {
+        $validated = app()->request->validateWith([
+            'name' => 'string',
+            'email' => 'email',
+            'age' => 'int'
+        ]);
+
+        $user = User::create($validated);
+        return response()->type($user, 201, Response::JSON);
+    }
+}
+```
+
+### Make API request
+
+```php
+$response = app()->request
+    ->url('https://api.github.com/users/octocat')
+    ->method('GET')
+    ->headers([
+        'Accept' => 'application/json',
+        'User-Agent' => 'Aeros-Framework'
+    ])
+    ->send();
+```
+
+### Filter request data
+
+```php
+// Get only specific fields
+$credentials = app()->request->only(['email', 'password']);
+
+// Exclude sensitive fields from logging
+$logData = app()->request->except(['password', 'token']);
+```
+
+### Custom validation
+
+```php
+$data = app()->request->validate([
+    'email' => FILTER_VALIDATE_EMAIL,
+    'age' => [
+        'filter' => FILTER_VALIDATE_INT,
+        'options' => ['min_range' => 18, 'max_range' => 120]
+    ],
+    'website' => FILTER_VALIDATE_URL
+]);
+```

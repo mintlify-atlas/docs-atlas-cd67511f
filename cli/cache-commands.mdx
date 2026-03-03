@@ -1,0 +1,269 @@
+---
+title: Cache Commands
+description: Commands for managing and clearing application cache
+---
+
+Aeros provides cache management commands for clearing cache keys and flushing entire cache connections. The framework supports multiple cache drivers including Redis, Memcached, and local file-based caching.
+
+## cache:clear
+
+Clears specific cache keys or flushes entire cache connections.
+
+```bash
+php aeros cache:clear
+```
+
+**Arguments:**
+- `keys` (optional, array) - Cache keys to delete in the format `connection:key`
+
+**Options:**
+- `-f, --flush` - Flush all cache connections (destructive operation)
+
+## Clearing Specific Keys
+
+Delete individual cache keys by specifying the connection and key name:
+
+```bash
+php aeros cache:clear redis-conn:cache.routes memcached-conn:cache.users
+```
+
+**Key Format:**
+```bash
+connection-name:cache-key
+```
+
+**Examples:**
+
+<CodeGroup>
+```bash Single Key
+php aeros cache:clear redis:cache.routes
+# Deletes the 'cache.routes' key from the 'redis' connection
+```
+
+```bash Multiple Keys
+php aeros cache:clear redis:cache.routes redis:cache.config memcached:session.data
+# Deletes multiple keys from different connections
+```
+
+```bash All Keys in Connection
+php aeros cache:clear redis:*
+# Flushes all keys from the 'redis' connection
+```
+</CodeGroup>
+
+<Info>
+Use the wildcard `*` as the key name to flush all keys in a specific connection.
+</Info>
+
+## Flushing All Cache
+
+Flush all cache connections defined in your configuration:
+
+```bash
+php aeros cache:clear --flush
+```
+
+**Interactive Confirmation:**
+```bash
+php aeros cache:clear --flush
+# Prompts: "This action is destructive. Do you want to continue? [Y/n]"
+```
+
+<Warning>
+The `--flush` option clears **all data** from **all configured cache connections**. This action cannot be undone.
+</Warning>
+
+## Supported Cache Drivers
+
+The `cache:clear` command supports different operations based on the cache driver:
+
+<AccordionGroup>
+  <Accordion title="Redis">
+    **Operations:**
+    - Check if key exists: `EXISTS key`
+    - Delete key: `DEL key`
+    - Flush connection: `FLUSHDB`
+    
+    **Example:**
+    ```bash
+    php aeros cache:clear redis:user.123
+    ```
+  </Accordion>
+  
+  <Accordion title="Memcached">
+    **Operations:**
+    - Get key to check existence
+    - Delete key: `delete(key)`
+    - Flush connection: `flush()`
+    
+    **Example:**
+    ```bash
+    php aeros cache:clear memcached:session.abc123
+    ```
+  </Accordion>
+  
+  <Accordion title="Local/File-based">
+    **Operations:**
+    - Deletes cache files from `app/logs/cache/*.log`
+    
+    **Example:**
+    ```bash
+    php aeros cache:clear local:*
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Progress Indicator
+
+When clearing multiple keys, a progress bar shows the operation status:
+
+```bash
+php aeros cache:clear redis:key1 redis:key2 memcached:key3
+
+# Output:
+# Are you sure you want to delete permanentely these keys? [y/N] y
+# 3/3 [████████████████████] Deleting key: key3 100% 1 sec/1 sec
+# Completed
+```
+
+## Cache Configuration
+
+Cache connections are defined in your `config/cache.php` file:
+
+```php
+'connections' => [
+    'redis' => [
+        'driver' => 'redis',
+        'host' => '127.0.0.1',
+        'port' => 6379,
+    ],
+    'memcached' => [
+        'driver' => 'memcached',
+        'servers' => [
+            ['host' => '127.0.0.1', 'port' => 11211]
+        ],
+    ],
+    'local' => [
+        'driver' => 'local',
+    ],
+],
+```
+
+## Usage Examples
+
+### Clear Route Cache
+
+```bash
+php aeros cache:clear redis:cache.routes
+```
+
+### Clear Multiple Middleware Caches
+
+```bash
+php aeros cache:clear memcached:cache.middleware.auth memcached:cache.middleware.cors
+```
+
+### Flush Specific Connection
+
+```bash
+php aeros cache:clear redis:*
+```
+
+### Clear Development Cache
+
+```bash
+# Clear all cache in development
+php aeros cache:clear --flush
+```
+
+### Selective Cache Clear
+
+```bash
+# Clear only user-related caches
+php aeros cache:clear redis:users.* redis:sessions.*
+```
+
+## Common Cache Keys
+
+Depending on your Aeros application configuration, common cache keys might include:
+
+- `cache.routes` - Cached application routes
+- `cache.config` - Configuration cache
+- `cache.middlewares` - Middleware cache
+- `cache.providers` - Service provider cache
+- `session.*` - Session data
+- `user.*` - User-specific cache
+
+<Tip>
+During development, regularly clear your cache when making configuration changes:
+```bash
+php aeros cache:clear --flush
+```
+</Tip>
+
+## Error Handling
+
+The command provides detailed error messages:
+
+<AccordionGroup>
+  <Accordion title="Key not found">
+    ```bash
+    # Logged to application logs:
+    Key "cache.routes" was not found in "redis" cache connection
+    ```
+    The command continues execution for remaining keys.
+  </Accordion>
+  
+  <Accordion title="Connection not found">
+    ```bash
+    ERROR[Cache connection] Cache connection "invalid" not found.
+    ```
+    Verify the connection name exists in `config/cache.php`.
+  </Accordion>
+  
+  <Accordion title="Unsupported driver">
+    ```bash
+    ERROR[Cache driver] Cache driver "custom" is not supported.
+    ```
+    Use Redis, Memcached, or local cache drivers.
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Development" icon="code">
+    Use `--flush` frequently during development to ensure fresh cache
+  </Card>
+  <Card title="Production" icon="server">
+    Clear specific keys instead of flushing to avoid performance impact
+  </Card>
+  <Card title="Deployments" icon="rocket">
+    Clear cache after deploying configuration or route changes
+  </Card>
+  <Card title="Testing" icon="flask">
+    Flush cache before running test suites for consistent results
+  </Card>
+</CardGroup>
+
+## Cache in Application Lifecycle
+
+The `run:app` command automatically checks cache connectivity:
+
+```bash
+php aeros run:app
+# ==> Checking default redis cache connection status... OK.
+```
+
+If cache is unavailable, the application won't start. Use `cache:clear` to troubleshoot connection issues.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Overview" icon="terminal" href="/cli/overview">
+    Learn about other CLI commands
+  </Card>
+  <Card title="Cache Usage" icon="bolt">
+    Learn how to use cache in your application
+  </Card>
+</CardGroup>

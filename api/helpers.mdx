@@ -1,0 +1,947 @@
+---
+title: Helper Functions
+description: Global helper functions available throughout the Aeros framework
+---
+
+## Overview
+
+Aeros provides a comprehensive set of global helper functions that simplify common tasks like accessing services, managing configurations, handling requests, and manipulating strings. All helper functions are available globally without requiring any imports.
+
+## Core Framework Helpers
+
+### app()
+
+Bootstraps and returns the application service container instance.
+
+```php
+function app(): \Aeros\Src\Classes\ServiceContainer
+```
+
+**Returns:** The singleton ServiceContainer instance
+
+**Throws:** `\Exception` if bootstrapping fails
+
+**Example:**
+```php
+$container = app();
+$basedir = app()->basedir;
+```
+
+---
+
+### config()
+
+Returns values or objects from configuration files.
+
+```php
+function config(string $from, mixed $default = null): mixed
+```
+
+<ParamField path="from" type="string" required>
+  The configuration key using dot notation (e.g., 'app.name', 'db.connections')
+</ParamField>
+
+<ParamField path="default" type="mixed">
+  Default value to return if the configuration key is not found
+</ParamField>
+
+**Example:**
+```php
+$appName = config('app.name');
+$dbHost = config('db.connections.mysql.host', 'localhost');
+```
+
+---
+
+### env()
+
+Gets an environment variable if it exists, otherwise returns the default value.
+
+```php
+function env(string $key, $default = null): mixed
+```
+
+<ParamField path="key" type="string" required>
+  The environment variable name
+</ParamField>
+
+<ParamField path="default" type="mixed">
+  Default value to return if the variable is not set
+</ParamField>
+
+**Example:**
+```php
+$appEnv = env('APP_ENV', 'production');
+$debug = env('APP_DEBUG', false);
+```
+
+---
+
+## View & Response Helpers
+
+### view()
+
+Renders and returns a view template with optional data.
+
+```php
+function view(string $view, array $values = [], string $subfolder = ''): mixed
+```
+
+<ParamField path="view" type="string" required>
+  The name of the view template to render
+</ParamField>
+
+<ParamField path="values" type="array">
+  Associative array of data to pass to the view
+</ParamField>
+
+<ParamField path="subfolder" type="string">
+  Optional subfolder within the views directory
+</ParamField>
+
+**Example:**
+```php
+return view('home', ['title' => 'Welcome']);
+return view('admin/dashboard', ['user' => $user], 'admin');
+```
+
+---
+
+### response()
+
+Formats and returns content as JSON, XML, HTML, or other content types.
+
+```php
+function response($data = null, int $code = null, string $type = \Aeros\Src\Classes\Response::HTML): mixed
+```
+
+<ParamField path="data" type="mixed">
+  The data to return. If null, returns the Response instance
+</ParamField>
+
+<ParamField path="code" type="int">
+  HTTP status code
+</ParamField>
+
+<ParamField path="type" type="string">
+  Content type (Response::HTML, Response::JSON, Response::XML)
+</ParamField>
+
+**Example:**
+```php
+return response(['status' => 'success'], 200, Response::JSON);
+return response()->json(['data' => $items]);
+```
+
+---
+
+### abort()
+
+Terminates the script and returns a response with the specified status code.
+
+```php
+function abort($data = null, int $code = 403, string $type = \Aeros\Src\Classes\Response::HTML): void
+```
+
+<ParamField path="data" type="mixed">
+  The response data to display
+</ParamField>
+
+<ParamField path="code" type="int">
+  HTTP status code (default: 403)
+</ParamField>
+
+<ParamField path="type" type="string">
+  Content type for the response
+</ParamField>
+
+**Example:**
+```php
+abort('Unauthorized', 401);
+abort(['error' => 'Not found'], 404, Response::JSON);
+```
+
+---
+
+### component()
+
+Renders a component and returns HTML content.
+
+```php
+function component(string $component, array $data = [], bool $dump = true): mixed
+```
+
+<ParamField path="component" type="string" required>
+  The component name to render
+</ParamField>
+
+<ParamField path="data" type="array">
+  Data to pass to the component
+</ParamField>
+
+<ParamField path="dump" type="bool">
+  If true, outputs the component. If false, returns the component body
+</ParamField>
+
+**Example:**
+```php
+component('navbar', ['active' => 'home']);
+$html = component('card', ['title' => 'Info'], false);
+```
+
+---
+
+## Request & Redirect Helpers
+
+### request()
+
+Handles HTTP requests with cURL or retrieves request data from specific HTTP methods.
+
+```php
+function request(mixed $opts = '', array $keys = []): mixed
+```
+
+<ParamField path="opts" type="mixed">
+  Request options or HTTP method. If empty, returns the Request instance
+</ParamField>
+
+<ParamField path="keys" type="array">
+  Specific keys to extract from the request
+</ParamField>
+
+**Example:**
+```php
+$email = request()->get('email');
+$data = request('POST', ['name', 'email']);
+```
+
+---
+
+### redirect()
+
+Performs a redirect to a specified URL with optional arguments.
+
+```php
+function redirect(string $redirect, array $arguments = [], string $request_method = 'GET'): void
+```
+
+<ParamField path="redirect" type="string" required>
+  The URL or route to redirect to
+</ParamField>
+
+<ParamField path="arguments" type="array">
+  Query parameters or route parameters
+</ParamField>
+
+<ParamField path="request_method" type="string">
+  The HTTP method for the redirect (default: 'GET')
+</ParamField>
+
+**Example:**
+```php
+redirect('/dashboard');
+redirect('/user/profile', ['id' => 123]);
+```
+
+---
+
+### validate()
+
+Validates request data with filter rules.
+
+```php
+function validate(array $rules): array
+```
+
+<ParamField path="rules" type="array" required>
+  Validation rules to apply to the request data
+</ParamField>
+
+**Returns:** Array of validated data
+
+**Example:**
+```php
+$data = validate([
+    'email' => 'required|email',
+    'password' => 'required|min:8'
+]);
+```
+
+---
+
+## Database & Cache Helpers
+
+### db()
+
+Returns a database connection instance.
+
+```php
+function db(string $connection = null): \Aeros\Src\Classes\Db
+```
+
+<ParamField path="connection" type="string">
+  Connection name from config (e.g., 'sqlite-server-01'). If null, uses default connection
+</ParamField>
+
+**Example:**
+```php
+$users = db()->table('users')->get();
+$posts = db('mysql-secondary')->table('posts')->where('status', 'published')->get();
+```
+
+---
+
+### cache()
+
+Returns a cache instance for the specified connection.
+
+```php
+function cache($connection = null): mixed
+```
+
+<ParamField path="connection" type="string">
+  Cache connection name. If null, uses default connection
+</ParamField>
+
+**Example:**
+```php
+cache()->set('user:1', $userData, 3600);
+$user = cache()->get('user:1');
+cache('redis')->flush();
+```
+
+---
+
+## Security Helpers
+
+### csrf()
+
+Embeds a CSRF token into a hidden input field.
+
+```php
+function csrf(): void
+```
+
+**Example:**
+```php
+<form method="POST">
+    <?php csrf(); ?>
+    <input type="text" name="email">
+    <button type="submit">Submit</button>
+</form>
+```
+
+---
+
+### sanitizeWith()
+
+Sanitizes a value using specified security policies.
+
+```php
+function sanitizeWith($vector, array $categories, string $replacement = ''): mixed
+```
+
+<ParamField path="vector" type="mixed" required>
+  The value to sanitize
+</ParamField>
+
+<ParamField path="categories" type="array" required>
+  Security policy categories to apply from config('security')
+</ParamField>
+
+<ParamField path="replacement" type="string">
+  String to replace sanitized content with
+</ParamField>
+
+**Example:**
+```php
+$clean = sanitizeWith($userInput, ['xss', 'sql']);
+```
+
+---
+
+### encryptor()
+
+Returns the global encryptor instance.
+
+```php
+function encryptor(): \Aeros\Src\Classes\Encryptor
+```
+
+**Example:**
+```php
+$encrypted = encryptor()->encrypt('sensitive data');
+$decrypted = encryptor()->decrypt($encrypted);
+```
+
+---
+
+## Session & Cookie Helpers
+
+### session()
+
+Returns the global session object.
+
+```php
+function session(): \Aeros\Src\Classes\Session
+```
+
+**Example:**
+```php
+session()->set('user_id', 123);
+$userId = session()->get('user_id');
+session()->destroy();
+```
+
+---
+
+### cookie()
+
+Manages cookies - get, set, or retrieve the CookieJar instance.
+
+```php
+function cookie(
+    string $cookie_name = null,
+    mixed $cookie_value = null,
+    int $cookie_expiration = 0,
+    string $path = "/",
+    string $cookie_domain = '',
+    bool $secure = false,
+    bool $httponly = true
+): mixed
+```
+
+<ParamField path="cookie_name" type="string">
+  The cookie name
+</ParamField>
+
+<ParamField path="cookie_value" type="mixed">
+  The cookie value. If null with a name, retrieves the cookie value
+</ParamField>
+
+<ParamField path="cookie_expiration" type="int">
+  Cookie expiration time in seconds
+</ParamField>
+
+<ParamField path="path" type="string">
+  Path on server where cookie is available (default: "/")
+</ParamField>
+
+<ParamField path="cookie_domain" type="string">
+  Domain that the cookie is available to
+</ParamField>
+
+<ParamField path="secure" type="bool">
+  Only transmit over HTTPS (default: false)
+</ParamField>
+
+<ParamField path="httponly" type="bool">
+  Only accessible via HTTP protocol (default: true)
+</ParamField>
+
+**Example:**
+```php
+// Get cookie value
+$token = cookie('auth_token');
+
+// Set cookie
+cookie('auth_token', 'abc123', 3600);
+
+// Access CookieJar instance
+cookie()->delete('old_token');
+```
+
+---
+
+## File & Storage Helpers
+
+### store()
+
+Uploads and stores file(s), returning file information.
+
+```php
+function store(array $uploadedFiles, ?string $directory = null, array $options = []): array
+```
+
+<ParamField path="uploadedFiles" type="array" required>
+  The $_FILES array element (e.g., $_FILES['document'])
+</ParamField>
+
+<ParamField path="directory" type="string">
+  Target directory. If null, uses config default
+</ParamField>
+
+<ParamField path="options" type="array">
+  Override options like ['name' => 'custom.jpg', 'overwrite' => false]
+</ParamField>
+
+**Returns:** Array of file information including path, name, size, mime, etc.
+
+**Example:**
+```php
+$files = store($_FILES['documents'], '/uploads/docs');
+foreach ($files as $file) {
+    echo $file['path'] . ' - ' . $file['size'];
+}
+```
+
+---
+
+### scan()
+
+Scans a directory for files with specific extensions.
+
+```php
+function scan(string $path, array $filenames = [], $extensions = ['php']): array
+```
+
+<ParamField path="path" type="string" required>
+  The directory path to scan
+</ParamField>
+
+<ParamField path="filenames" type="array">
+  Optional array of specific filenames to filter by
+</ParamField>
+
+<ParamField path="extensions" type="mixed">
+  Array of file extensions to filter by (default: ['php'])
+</ParamField>
+
+**Returns:** Array of matching filenames
+
+**Throws:** `\Exception` if path is empty or directory doesn't exist
+
+**Example:**
+```php
+$phpFiles = scan('/app/Controllers');
+$configFiles = scan('/app/config', [], ['json', 'yaml']);
+```
+
+---
+
+### load()
+
+Loads PHP files from a specified directory.
+
+```php
+function load(string $path, array $filenames = []): bool
+```
+
+<ParamField path="path" type="string" required>
+  The directory path containing PHP files
+</ParamField>
+
+<ParamField path="filenames" type="array">
+  Optional array of specific filenames to load
+</ParamField>
+
+**Returns:** True if files are loaded successfully
+
+**Throws:** `\Exception` if no files are found
+
+**Example:**
+```php
+load('/app/Helpers');
+load('/app/Config', ['database', 'cache']);
+```
+
+---
+
+## Background Tasks & Scheduling
+
+### queue()
+
+Returns the queue instance for background job processing.
+
+```php
+function queue(): \Aeros\Src\Classes\Queue
+```
+
+**Example:**
+```php
+queue()->push(new SendEmailJob($user));
+queue()->process();
+```
+
+---
+
+### worker()
+
+Returns the main application worker instance.
+
+```php
+function worker(): \Aeros\Src\Classes\Worker
+```
+
+**Example:**
+```php
+worker()->start();
+worker()->process($job);
+```
+
+---
+
+### cron()
+
+Returns the cron scheduler instance.
+
+```php
+function cron(): \Aeros\Src\Classes\Cron
+```
+
+**Example:**
+```php
+cron()->schedule('daily-backup', '0 2 * * *', function() {
+    // Backup logic
+});
+```
+
+---
+
+## Rate Limiting & CORS
+
+### rateLimiter()
+
+Returns the rate limiter instance.
+
+```php
+function rateLimiter(): \Aeros\Src\Classes\RateLimiter
+```
+
+**Throws:** `\Exception` if rate limiter is not configured
+
+**Example:**
+```php
+rateLimiter()->attempt('api:' . $userId, 60, 100);
+```
+
+---
+
+### cors()
+
+Returns the CORS whitelist service provider.
+
+```php
+function cors(): \App\Providers\CorsWhitelistServiceProvider
+```
+
+**Throws:** `\Exception` if CORS is not configured
+
+**Example:**
+```php
+cors()->allow('https://example.com');
+```
+
+---
+
+## Logging & Debugging
+
+### logger()
+
+Appends a message to a log file.
+
+```php
+function logger(mixed $message, string $logFile = '', bool $createFile = false): bool
+```
+
+<ParamField path="message" type="mixed" required>
+  The message to log
+</ParamField>
+
+<ParamField path="logFile" type="string">
+  Path and filename for the log file. If empty, uses error.log
+</ParamField>
+
+<ParamField path="createFile" type="bool">
+  Whether to create the log file if it doesn't exist
+</ParamField>
+
+**Example:**
+```php
+logger('User login attempt', 'auth.log');
+logger(['error' => 'Connection failed'], 'errors.log', true);
+```
+
+---
+
+### dd()
+
+Dumps variables and terminates script execution (dump and die).
+
+```php
+function dd(...$args): void
+```
+
+<ParamField path="args" type="mixed" required>
+  Variables to dump
+</ParamField>
+
+**Example:**
+```php
+dd($user, $request, $config);
+```
+
+---
+
+## String Manipulation Helpers
+
+### str_find()
+
+Searches for strings within another string based on a list.
+
+```php
+function str_find(string $haystack, array $needles): bool
+```
+
+<ParamField path="haystack" type="string" required>
+  The string to search in
+</ParamField>
+
+<ParamField path="needles" type="array" required>
+  Array of strings to search for
+</ParamField>
+
+**Returns:** True if any needle is found at the start of the haystack
+
+**Example:**
+```php
+if (str_find($url, ['http://', 'https://'])) {
+    // URL starts with http:// or https://
+}
+```
+
+---
+
+### pluralize()
+
+Converts a word to its plural form.
+
+```php
+function pluralize(string $word): string
+```
+
+<ParamField path="word" type="string" required>
+  The word to pluralize
+</ParamField>
+
+**Example:**
+```php
+echo pluralize('user');  // "users"
+echo pluralize('child'); // "children"
+```
+
+---
+
+### singularize()
+
+Converts a word to its singular form.
+
+```php
+function singularize(string $word): array
+```
+
+<ParamField path="word" type="string" required>
+  The word to singularize
+</ParamField>
+
+**Returns:** Array of possible singular forms
+
+**Example:**
+```php
+$singular = singularize('users');  // ["user"]
+```
+
+---
+
+### class_basename()
+
+Extracts the class name from a fully qualified class name.
+
+```php
+function class_basename(string $string, string $separator = '\\'): string
+```
+
+<ParamField path="string" type="string" required>
+  The fully qualified class name
+</ParamField>
+
+<ParamField path="separator" type="string">
+  The namespace separator (default: '\\')
+</ParamField>
+
+**Example:**
+```php
+echo class_basename('Aeros\Classes\User'); // "User"
+```
+
+---
+
+### truncate()
+
+Truncates a string to a specified length with a substitute.
+
+```php
+function truncate(string $string, int $length = 30, string $substitute = '...'): string
+```
+
+<ParamField path="string" type="string" required>
+  The string to truncate
+</ParamField>
+
+<ParamField path="length" type="int">
+  Maximum length of the resulting string (default: 30)
+</ParamField>
+
+<ParamField path="substitute" type="string">
+  The string to append when truncated (default: '...')
+</ParamField>
+
+**Example:**
+```php
+echo truncate('This is a very long sentence', 15); // "This is a ve..."
+```
+
+---
+
+### truncateAtWord()
+
+Truncates a string at the last complete word within the specified length.
+
+```php
+function truncateAtWord(string $string, int $length = 30, string $substitute = '...'): string
+```
+
+<ParamField path="string" type="string" required>
+  The string to truncate
+</ParamField>
+
+<ParamField path="length" type="int">
+  Maximum length of the resulting string (default: 30)
+</ParamField>
+
+<ParamField path="substitute" type="string">
+  The string to append when truncated (default: '...')
+</ParamField>
+
+**Example:**
+```php
+echo truncateAtWord('This is a very long sentence', 15); // "This is a..."
+```
+
+---
+
+## Configuration Management
+
+### updateEnvVariable()
+
+Updates environment variables in the .env file.
+
+```php
+function updateEnvVariable(array $newEnvValues): bool|int
+```
+
+<ParamField path="newEnvValues" type="array" required>
+  Associative array of environment variable names and values
+</ParamField>
+
+**Returns:** Number of bytes written on success, false on failure
+
+**Example:**
+```php
+updateEnvVariable(['APP_KEY' => 'new-app-key-123']);
+```
+
+---
+
+### updateJsonNode()
+
+Updates values of nested nodes in a JSON file.
+
+```php
+function updateJsonNode(array $keyValues, string $jsonFile): bool|int
+```
+
+<ParamField path="keyValues" type="array" required>
+  Associative array where keys use dot notation for nested structure
+</ParamField>
+
+<ParamField path="jsonFile" type="string" required>
+  Path to the JSON file to update
+</ParamField>
+
+**Returns:** True on success, false if key not found, or bytes written
+
+**Example:**
+```php
+updateJsonNode(
+    ['environments.staging.name' => 'newdb'],
+    app()->basedir . '/../phinx.json'
+);
+```
+
+---
+
+## Environment Helpers
+
+### isMode()
+
+Checks if the current Server API mode matches the specified mode.
+
+```php
+function isMode(string $mode): bool
+```
+
+<ParamField path="mode" type="string" required>
+  The SAPI mode to check: 'cli', 'cli-server', 'cgi-fcgi', 'fpm-fcgi', 'litespeed', 'embed', 'phpdbg'
+</ParamField>
+
+**Example:**
+```php
+if (isMode('cli')) {
+    echo "Running in command line mode";
+}
+```
+
+---
+
+### isEnv()
+
+Determines if the environment matches the requested label.
+
+```php
+function isEnv(string|array $env): bool
+```
+
+<ParamField path="env" type="string|array" required>
+  Environment name(s) to check against APP_ENV
+</ParamField>
+
+**Example:**
+```php
+if (isEnv('production')) {
+    // Production-specific code
+}
+
+if (isEnv(['staging', 'production'])) {
+    // Staging or production code
+}
+```
+
+---
+
+### isInternal()
+
+Validates if the current user is internal (based on IP or environment).
+
+```php
+function isInternal(): bool
+```
+
+**Returns:** True if the user is internal, false otherwise
+
+**Example:**
+```php
+if (isInternal()) {
+    // Show admin features
+}
+```

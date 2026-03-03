@@ -1,0 +1,308 @@
+---
+title: HTTP Responses
+description: Creating and managing HTTP responses in Aeros
+---
+
+The `Response` class provides methods to create and send HTTP responses with different content types, headers, and status codes.
+
+## Basic Response
+
+### Creating Responses
+
+```php
+use Aeros\Src\Classes\Response;
+
+$response = new Response();
+
+// Send response with default type (HTML)
+$response->type($data);
+
+// Send response with status code
+$response->type($data, 200);
+```
+
+## Response Types
+
+Aeros supports multiple response content types through class constants:
+
+### Available Types
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `Response::HTML` | html | HTML content |
+| `Response::JSON` | json | JSON data |
+| `Response::XML` | xml | XML content |
+| `Response::CSV` | csv | CSV data |
+| `Response::TXT` | txt | Plain text |
+| `Response::PDF` | pdf | PDF documents |
+| `Response::CSS` | css | CSS stylesheets |
+| `Response::JS` | js | JavaScript files |
+| `Response::PNG` | png | PNG images |
+| `Response::JPG` | jpg | JPEG images |
+| `Response::GIF` | gif | GIF images |
+| `Response::SVG` | svg | SVG images |
+| `Response::ICO` | ico | Icon files |
+
+## JSON Responses
+
+### Returning JSON Data
+
+```php
+$data = [
+    'success' => true,
+    'message' => 'User created successfully',
+    'user' => [
+        'id' => 1,
+        'name' => 'John Doe',
+        'email' => 'john@example.com'
+    ]
+];
+
+$response->type($data, 200, Response::JSON);
+```
+
+### JSON String Response
+
+```php
+// Already JSON encoded string
+$jsonString = '{"status":"success","data":[]}';
+
+$response->type($jsonString, 200, Response::JSON);
+```
+
+### Primitive Values
+
+```php
+// String, number, or boolean values are wrapped in array
+$response->type('success', 200, Response::JSON);
+// Output: ["success"]
+
+$response->type(42, 200, Response::JSON);
+// Output: [42]
+```
+
+## HTML Responses
+
+```php
+$html = '<h1>Welcome</h1><p>Hello World</p>';
+
+$response->type($html, 200, Response::HTML);
+```
+
+## CSV Responses
+
+```php
+$csv = "Name,Email,Age\n";
+$csv .= "John Doe,john@example.com,30\n";
+$csv .= "Jane Smith,jane@example.com,25";
+
+$response->type($csv, 200, Response::CSV);
+```
+
+## XML Responses
+
+```php
+$xml = '<?xml version="1.0"?>';
+$xml .= '<users>';
+$xml .= '<user><name>John Doe</name></user>';
+$xml .= '</users>';
+
+$response->type($xml, 200, Response::XML);
+```
+
+## Status Codes
+
+### Setting Status Code
+
+```php
+// Set response code
+$response->withResponseCode(200);
+$response->withResponseCode(201);
+$response->withResponseCode(404);
+$response->withResponseCode(500);
+```
+
+### Common Status Codes
+
+```php
+// Success
+$response->type($data, 200, Response::JSON); // OK
+$response->type($data, 201, Response::JSON); // Created
+$response->type($data, 204, Response::JSON); // No Content
+
+// Client Errors
+$response->type($error, 400, Response::JSON); // Bad Request
+$response->type($error, 401, Response::JSON); // Unauthorized
+$response->type($error, 403, Response::JSON); // Forbidden
+$response->type($error, 404, Response::JSON); // Not Found
+
+// Server Errors
+$response->type($error, 500, Response::JSON); // Internal Server Error
+$response->type($error, 503, Response::JSON); // Service Unavailable
+```
+
+## Headers
+
+### Adding Headers
+
+```php
+// Add single header
+$response->addHeaders(['Content-Type' => 'application/json']);
+
+// Add multiple headers
+$response->addHeaders([
+    'Content-Type' => 'application/json',
+    'Cache-Control' => 'no-cache',
+    'X-Custom-Header' => 'value'
+]);
+
+// Add indexed headers
+$response->addHeaders([
+    'Access-Control-Allow-Origin: *',
+    'Access-Control-Allow-Methods: GET, POST'
+]);
+```
+
+### Getting Headers
+
+```php
+// Get all headers
+$headers = $response->getHeaders();
+```
+
+### Removing Headers
+
+```php
+// Remove specific headers
+$response->removeHeaders(['Content-Type', 'Cache-Control']);
+```
+
+<Note>
+Removing headers only affects headers added via `addHeaders()`. Default headers from configuration are not removed.
+</Note>
+
+### Sending Headers
+
+```php
+// Send headers to client
+$response->sendHeaders();
+
+// Or manually assign to response
+$response->assignHeadersToResponse();
+```
+
+## Complete Examples
+
+### API Success Response
+
+```php
+$response = new Response();
+
+$response
+    ->addHeaders([
+        'Content-Type' => 'application/json',
+        'X-API-Version' => '1.0'
+    ])
+    ->type([
+        'success' => true,
+        'data' => $users
+    ], 200, Response::JSON);
+```
+
+### API Error Response
+
+```php
+$response = new Response();
+
+$response
+    ->withResponseCode(400)
+    ->type([
+        'success' => false,
+        'error' => 'Invalid request parameters',
+        'errors' => [
+            'email' => 'Email is required',
+            'password' => 'Password must be at least 8 characters'
+        ]
+    ], 400, Response::JSON);
+```
+
+### File Download Response
+
+```php
+$response = new Response();
+
+$response
+    ->addHeaders([
+        'Content-Type' => 'application/pdf',
+        'Content-Disposition' => 'attachment; filename="report.pdf"'
+    ])
+    ->type($pdfContent, 200, Response::PDF);
+```
+
+### CORS-Enabled Response
+
+```php
+$response = new Response();
+
+$response
+    ->addHeaders([
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE',
+        'Access-Control-Allow-Headers' => 'Content-Type, Authorization'
+    ])
+    ->type($data, 200, Response::JSON);
+```
+
+## CLI Mode
+
+When running in CLI mode, responses are formatted for console output:
+
+```php
+// In CLI mode, arrays are formatted with color
+$response->type([
+    'status' => 'complete',
+    'records' => 150,
+    'duration' => '2.5s'
+]);
+
+// Output:
+// status: 'complete'
+// records: 150
+// duration: '2.5s'
+```
+
+<Info>
+CLI output uses Symfony Console components with formatted styling (green text on black background for keys).
+</Info>
+
+## Best Practices
+
+<Card title="Consistent Response Format" icon="check">
+Use a consistent response format across your API:
+
+```php
+// Success format
+[
+    'success' => true,
+    'data' => $data
+]
+
+// Error format
+[
+    'success' => false,
+    'error' => $message,
+    'errors' => $validationErrors
+]
+```
+</Card>
+
+<Card title="Appropriate Status Codes" icon="check">
+Use the correct HTTP status codes:
+- 2xx for success
+- 4xx for client errors
+- 5xx for server errors
+</Card>
+
+<Card title="Content-Type Headers" icon="check">
+Always set the correct Content-Type header for your response type. The `type()` method handles this automatically for JSON responses.
+</Card>

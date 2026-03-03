@@ -1,0 +1,235 @@
+---
+title: "Middleware"
+description: "Add middleware to routes for authentication, validation, and request processing"
+---
+
+## Overview
+
+Middleware provides a convenient way to filter and process HTTP requests entering your application. Each middleware can examine the request and response before the route handler is executed.
+
+## Middleware Requirements
+
+All middleware classes must implement the `MiddlewareInterface`:
+
+```php
+namespace App\Middleware;
+
+use Aeros\Src\Interfaces\MiddlewareInterface;
+use Aeros\Src\Classes\Request;
+use Aeros\Src\Classes\Response;
+
+class AuthMiddleware implements MiddlewareInterface
+{
+    public function __invoke(Request $request, Response $response)
+    {
+        // Check if user is authenticated
+        if (!isset($_SESSION['user_id'])) {
+            $response->redirect('/login');
+            exit;
+        }
+    }
+}
+```
+
+<Note>
+Middleware classes receive `Request` and `Response` instances automatically, allowing you to inspect the request and modify the response.
+</Note>
+
+## Applying Middleware to Routes
+
+Use the `withMiddleware()` method to attach middleware to individual routes:
+
+### Single Middleware
+
+```php
+Route::get('/dashboard', 'DashboardController@index')
+    ->withMiddleware(\App\Middleware\AuthMiddleware::class);
+```
+
+### Multiple Middleware
+
+Pass an array to apply multiple middleware in sequence:
+
+```php
+Route::get('/admin/users', 'Admin\UserController@index')
+    ->withMiddleware([
+        \App\Middleware\AuthMiddleware::class,
+        \App\Middleware\AdminMiddleware::class,
+        \App\Middleware\LogMiddleware::class,
+    ]);
+```
+
+<Tip>
+Middleware is executed in the order it appears in the array. Place authentication middleware before authorization middleware.
+</Tip>
+
+## Middleware Execution Order
+
+Middleware runs in a specific sequence:
+
+1. **Group middleware** (if the route is in a group)
+2. **Route-specific middleware** (applied via `withMiddleware()`)
+3. **Route handler** (controller or closure)
+
+```php
+// Example execution flow
+Router::group('auth', function() {
+    Route::get('/profile', 'UserController@profile')
+        ->withMiddleware(\App\Middleware\VerifiedMiddleware::class);
+});
+
+// Execution order:
+// 1. auth group middleware
+// 2. VerifiedMiddleware
+// 3. UserController@profile
+```
+
+## Creating Custom Middleware
+
+Here's a complete example of custom middleware:
+
+```php
+namespace App\Middleware;
+
+use Aeros\Src\Interfaces\MiddlewareInterface;
+use Aeros\Src\Classes\Request;
+use Aeros\Src\Classes\Response;
+
+class RateLimitMiddleware implements MiddlewareInterface
+{
+    public function __invoke(Request $request, Response $response)
+    {
+        $ip = $_SERVER['REMOTE_ADDR'];
+        $key = "rate_limit:{$ip}";
+        
+        // Get current request count
+        $requests = cache('memcached')->get($key) ?? 0;
+        
+        if ($requests >= 100) {
+            $response->setStatusCode(429);
+            $response->json(['error' => 'Too many requests']);
+            exit;
+        }
+        
+        // Increment request count
+        cache('memcached')->set($key, $requests + 1, 60);
+    }
+}
+```
+
+## Middleware Validation
+
+The router validates middleware before execution:
+
+```php
+// This will throw an exception if middleware is invalid
+Route::get('/test', 'TestController@index')
+    ->withMiddleware(\App\Middleware\InvalidMiddleware::class);
+```
+
+<Warning>
+If a middleware class doesn't exist or doesn't implement `MiddlewareInterface`, an exception is thrown:
+
+```
+ERROR[middleware] Middleware 'ClassName' does not exist or is invalid.
+```
+</Warning>
+
+## Common Middleware Examples
+
+### Authentication Middleware
+
+```php
+namespace App\Middleware;
+
+use Aeros\Src\Interfaces\MiddlewareInterface;
+use Aeros\Src\Classes\Request;
+use Aeros\Src\Classes\Response;
+
+class AuthMiddleware implements MiddlewareInterface
+{
+    public function __invoke(Request $request, Response $response)
+    {
+        if (!isset($_SESSION['authenticated'])) {
+            $response->redirect('/login');
+            exit;
+        }
+    }
+}
+```
+
+### CORS Middleware
+
+```php
+namespace App\Middleware;
+
+use Aeros\Src\Interfaces\MiddlewareInterface;
+use Aeros\Src\Classes\Request;
+use Aeros\Src\Classes\Response;
+
+class CorsMiddleware implements MiddlewareInterface
+{
+    public function __invoke(Request $request, Response $response)
+    {
+        $response->setHeader('Access-Control-Allow-Origin', '*');
+        $response->setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+        $response->setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+}
+```
+
+### Request Logging Middleware
+
+```php
+namespace App\Middleware;
+
+use Aeros\Src\Interfaces\MiddlewareInterface;
+use Aeros\Src\Classes\Request;
+use Aeros\Src\Classes\Response;
+
+class LogRequestMiddleware implements MiddlewareInterface
+{
+    public function __invoke(Request $request, Response $response)
+    {
+        $logData = [
+            'method' => $_SERVER['REQUEST_METHOD'],
+            'uri' => $_SERVER['REQUEST_URI'],
+            'ip' => $_SERVER['REMOTE_ADDR'],
+            'timestamp' => date('Y-m-d H:i:s'),
+        ];
+        
+        logger()->info('Request received', $logData);
+    }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep middleware focused">
+    Each middleware should have a single responsibility. Don't combine authentication, logging, and validation in one middleware.
+  </Accordion>
+  
+  <Accordion title="Order matters">
+    Apply middleware in logical order: authentication before authorization, logging before processing, CORS before content-type checks.
+  </Accordion>
+  
+  <Accordion title="Use early returns">
+    When middleware fails validation, exit immediately with an appropriate response. Don't let the request continue to the route handler.
+  </Accordion>
+  
+  <Accordion title="Avoid duplicates">
+    The router automatically prevents duplicate middleware on the same route, but be mindful when combining route-level and group-level middleware.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Route Groups" icon="layer-group" href="/routing/groups">
+    Apply middleware to multiple routes using route groups
+  </Card>
+  <Card title="Basic Routing" icon="route" href="/routing/basic-routing">
+    Learn the fundamentals of route registration
+  </Card>
+</CardGroup>

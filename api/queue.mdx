@@ -1,0 +1,362 @@
+---
+title: Queue & Job
+description: API reference for the Aeros Queue and Job classes
+---
+
+The Queue system provides a robust job processing mechanism with support for multiple pipelines, blocking operations, and job state management.
+
+## Queue Class
+
+### Namespace
+
+```php
+Aeros\Src\Classes\Queue
+```
+
+### Constants
+
+```php
+const DEFAULT_PIPELINE = 'gx_pipelines';
+const LOCKED_STATE = 'locked';
+const COMPLETED_STATE = 'completed';
+const FAILED_STATE = 'failed';
+const DEFAULT_BLOCK_TIMEOUT = 5; // seconds
+```
+
+## Methods
+
+### blockingPop
+
+Blocking pop operation that waits for a job without polling. This is the recommended solution for real-time queue processing.
+
+```php
+public function blockingPop(
+    string|array $pipelineName = '*',
+    int $timeout = self::DEFAULT_BLOCK_TIMEOUT
+): Job|bool
+```
+
+<ParamField path="pipelineName" type="string|array" default="'*'">
+  Pipeline name(s) to listen to. Use `'*'` or `'all'` for the default pipeline.
+</ParamField>
+
+<ParamField path="timeout" type="int" default="5">
+  Seconds to wait for a job. Use `0` for infinite timeout.
+</ParamField>
+
+**Returns:** `Job` instance if a job is available, `false` otherwise
+
+#### Usage Example
+
+```php
+$queue = new Queue();
+
+// Wait up to 5 seconds for a job
+$job = $queue->blockingPop();
+
+// Wait indefinitely
+$job = $queue->blockingPop('*', 0);
+
+// Listen to specific pipeline
+$job = $queue->blockingPop('email_queue', 10);
+```
+
+### processPipelineBlocking
+
+Processes a pipeline using blocking pop. This is the recommended method for workers.
+
+```php
+public function processPipelineBlocking(
+    string|array $pipelineName = '*',
+    int $timeout = self::DEFAULT_BLOCK_TIMEOUT
+): mixed
+```
+
+<ParamField path="pipelineName" type="string|array" default="'*'">
+  Pipeline name(s) to process.
+</ParamField>
+
+<ParamField path="timeout" type="int" default="5">
+  Block timeout in seconds.
+</ParamField>
+
+**Returns:** `true` on successful job execution, `false` otherwise
+
+#### Usage Example
+
+```php
+// Worker loop using blocking pop
+while (true) {
+    $queue->processPipelineBlocking('default', 5);
+}
+```
+
+### push
+
+Adds a Job or an array of jobs to a pipeline tail in the queue system.
+
+```php
+public function push(
+    array|string|Job $jobs,
+    string $pipelineName = '*'
+): bool
+```
+
+<ParamField path="jobs" type="array|string|Job">
+  One or more jobs to add. Can be a Job instance, job class name, or array of either.
+</ParamField>
+
+<ParamField path="pipelineName" type="string" default="'*'">
+  Pipeline name to add jobs to.
+</ParamField>
+
+**Returns:** `true` on success
+
+#### Usage Example
+
+```php
+$queue = new Queue();
+
+// Push single job instance
+$queue->push(new SendEmailJob());
+
+// Push job by class name
+$queue->push(SendEmailJob::class);
+
+// Push multiple jobs
+$queue->push([
+    new SendEmailJob(),
+    new ProcessImageJob(),
+]);
+
+// Push to specific pipeline
+$queue->push(new SendEmailJob(), 'email_pipeline');
+```
+
+### pushJob
+
+Pushes a single job to a pipeline. Prevents duplicate jobs of the same class.
+
+```php
+public function pushJob(string $pipelineName, Job $job): bool
+```
+
+<ParamField path="pipelineName" type="string">
+  Pipeline name.
+</ParamField>
+
+<ParamField path="job" type="Job">
+  Job instance to push.
+</ParamField>
+
+**Returns:** `true` if job was added, `false` if duplicate exists
+
+### pop
+
+Executes and removes a Job from the pipeline's head.
+
+```php
+public function pop(string $pipelineName = '*'): Job|bool
+```
+
+<ParamField path="pipelineName" type="string" default="'*'">
+  Pipeline name to pop from.
+</ParamField>
+
+**Returns:** `Job` instance or `false` if no jobs available
+
+#### Usage Example
+
+```php
+$job = $queue->pop('default');
+
+if ($job) {
+    $job->doWork();
+}
+```
+
+### processPipeline
+
+Processes and executes all jobs from a pipeline.
+
+<Note>
+  This method uses polling and should be avoided for workers. Use `processPipelineBlocking()` instead for better performance.
+</Note>
+
+```php
+public function processPipeline(array|string $pipelineName = '*'): mixed
+```
+
+<ParamField path="pipelineName" type="array|string" default="'*'">
+  Pipeline name(s) to process. Use `'*'` or `'all'` to process all pipelines.
+</ParamField>
+
+**Returns:** Array of job statuses if processing multiple pipelines, boolean for single pipeline
+
+#### Usage Example
+
+```php
+// Process default pipeline
+$queue->processPipeline();
+
+// Process all pipelines
+$queue->processPipeline('all');
+
+// Process specific pipeline
+$queue->processPipeline('email_queue');
+
+// Process multiple pipelines
+$statuses = $queue->processPipeline(['email_queue', 'image_queue']);
+```
+
+### getJobStatus
+
+Gets a list of job UUIDs and their timestamps.
+
+```php
+public function getJobStatus(
+    string $pipelineName = '*',
+    string $state = Queue::COMPLETED_STATE
+): array
+```
+
+<ParamField path="pipelineName" type="string" default="'*'">
+  Pipeline name to query.
+</ParamField>
+
+<ParamField path="state" type="string" default="'completed'">
+  Job state to filter by: `'completed'`, `'failed'`, or `'locked'`.
+</ParamField>
+
+**Returns:** Array of job status objects with `uuid` and `timestamp` properties
+
+#### Usage Example
+
+```php
+// Get completed jobs
+$completed = $queue->getJobStatus('default', Queue::COMPLETED_STATE);
+
+// Get failed jobs
+$failed = $queue->getJobStatus('default', Queue::FAILED_STATE);
+```
+
+### clearJobStatus
+
+Deletes all job statuses from the cache based on a pipeline name and state.
+
+```php
+public function clearJobStatus(
+    string $state = '*',
+    string $pipelineName = '*'
+): int
+```
+
+<ParamField path="state" type="string" default="'*'">
+  State to clear: `'completed'`, `'failed'`, `'locked'`, or `'*'` for all.
+</ParamField>
+
+<ParamField path="pipelineName" type="string" default="'*'">
+  Pipeline name to clear statuses from.
+</ParamField>
+
+**Returns:** Number of statuses deleted
+
+#### Usage Example
+
+```php
+// Clear all completed jobs
+$count = $queue->clearJobStatus(Queue::COMPLETED_STATE);
+
+// Clear all statuses for a pipeline
+$count = $queue->clearJobStatus('*', 'email_queue');
+```
+
+## Job Class
+
+### Namespace
+
+```php
+Aeros\Src\Classes\Job
+```
+
+### Properties
+
+```php
+public string $uuid;
+```
+
+Each job is automatically assigned a unique UUID on construction.
+
+### Methods
+
+#### __construct
+
+Constructor that adds a UUID to each job.
+
+```php
+public function __construct()
+```
+
+#### doWork
+
+Abstract method that runs the job work. Must be implemented by all job classes.
+
+```php
+abstract public function doWork(): bool
+```
+
+**Returns:** `true` if job completed successfully, `false` otherwise
+
+### Creating Custom Jobs
+
+To create a custom job, extend the `Job` class and implement the `doWork()` method:
+
+```php
+use Aeros\Src\Classes\Job;
+
+class SendEmailJob extends Job
+{
+    private string $to;
+    private string $subject;
+    private string $body;
+
+    public function __construct(string $to, string $subject, string $body)
+    {
+        parent::__construct();
+        $this->to = $to;
+        $this->subject = $subject;
+        $this->body = $body;
+    }
+
+    public function doWork(): bool
+    {
+        try {
+            // Send email logic here
+            mail($this->to, $this->subject, $this->body);
+            return true;
+        } catch (\Exception $e) {
+            logger()->error('Email failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
+```
+
+### Queue Job Flow
+
+1. **Job Creation** - Job is instantiated and assigned a UUID
+2. **Push to Queue** - Job is serialized and added to a pipeline
+3. **Worker Picks Job** - Worker retrieves job using blocking or regular pop
+4. **Job Locking** - Job is locked to prevent duplicate processing
+5. **Execution** - `doWork()` method is called
+6. **State Update** - Job marked as completed or failed
+7. **Unlock** - Job lock is removed
+
+### Best Practices
+
+- Use `processPipelineBlocking()` for worker processes instead of `processPipeline()`
+- Implement proper error handling in `doWork()` method
+- Return `true` for successful execution, `false` for failures
+- Failed jobs are automatically re-queued for retry
+- Use specific pipeline names to organize different job types
+- Monitor job statuses using `getJobStatus()` for debugging

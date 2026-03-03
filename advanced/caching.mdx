@@ -1,0 +1,233 @@
+---
+title: 'Caching'
+description: 'Learn how to use Aeros caching system with Redis, Memcached, and local file storage'
+---
+
+## Overview
+
+Aeros provides a flexible caching system that supports multiple drivers including Redis, Memcached, and local file storage. The cache system is configured in `config/cache.php` and accessed through the `cache()` helper function.
+
+## Supported Drivers
+
+The cache system supports three drivers:
+
+- **Redis** - High-performance in-memory data store
+- **Memcached** - Distributed memory caching system
+- **Local** - File-based caching using the local filesystem
+
+## Configuration
+
+Configure your cache connections in `config/cache.php`:
+
+```php config/cache.php
+return [
+    'default' => 'redis',
+    
+    'connections' => [
+        'redis' => [
+            'driver' => 'redis',
+        ],
+        'memcached' => [
+            'driver' => 'memcached',
+        ],
+        'local' => [
+            'driver' => 'local',
+        ],
+    ],
+];
+```
+
+## Environment Variables
+
+Set up your cache driver credentials in `.env`:
+
+```bash .env
+# Redis Configuration
+REDIS_PROTOCOL=tcp
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Memcached Configuration
+MEMCACHED_HOST=127.0.0.1
+MEMCACHED_PORT=11211
+```
+
+## Basic Usage
+
+### Using Default Connection
+
+Access the default cache connection using the `cache()` helper:
+
+```php
+// Set a value
+cache()->set('user:1', $userData);
+
+// Get a value
+$user = cache()->get('user:1');
+
+// Delete a value
+cache()->del('user:1');
+```
+
+### Using Specific Connections
+
+Switch between different cache connections:
+
+```php
+// Use Redis
+cache('redis')->set('key', 'value');
+
+// Use Memcached
+cache('memcached')->add('event:listener', $eventClass);
+
+// Use local file cache
+cache('local')->set('config', $data);
+```
+
+<Warning>
+The `setConnection()` method validates that the connection exists in your configuration. An exception will be thrown if you attempt to use an undefined connection.
+</Warning>
+
+## Common Operations
+
+### Redis Operations
+
+When using Redis, you have access to all Predis client methods:
+
+```php
+// String operations
+cache('redis')->set('key', 'value');
+cache('redis')->get('key');
+
+// Set with expiration (EX = seconds)
+cache('redis')->set('session:123', $data, 'ex', 3600);
+
+// Set only if not exists (NX)
+cache('redis')->set('lock:process', time(), 'ex', 10, 'nx');
+
+// List operations
+cache('redis')->lpush('queue', $job);
+cache('redis')->rpush('queue', $job);
+cache('redis')->lpop('queue');
+cache('redis')->blpop(['queue1', 'queue2'], 5);
+
+// Key pattern matching
+$keys = cache('redis')->keys('user:*');
+
+// Delete multiple keys
+cache('redis')->del(['key1', 'key2', 'key3']);
+```
+
+### Memcached Operations
+
+```php
+// Add (only if key doesn't exist)
+cache('memcached')->add('unique:key', $value);
+
+// Set (always)
+cache('memcached')->set('key', $value);
+
+// Get
+$value = cache('memcached')->get('key');
+
+// Delete
+cache('memcached')->delete('key');
+```
+
+### Local File Operations
+
+The local driver uses the file system for caching:
+
+```php
+// Uses app()->file under the hood
+cache('local')->write('cache/data.json', json_encode($data));
+$data = json_decode(cache('local')->read('cache/data.json'));
+```
+
+## Connection Pooling
+
+The Cache class uses the `Proxyable` trait to manage connection pooling. Connections are reused automatically:
+
+```php
+// First call creates the connection
+$redis = cache('redis');
+
+// Subsequent calls reuse the same connection
+$sameRedis = cache('redis');
+```
+
+## Special Connection Configurations
+
+### Queue Connection
+
+For queue operations, the Redis driver uses an infinite timeout to support blocking operations:
+
+```php
+// Queue connections use timeout = 0 for BLPOP support
+cache('queue')->blpop(['job:queue'], 0);
+```
+
+<Info>
+Connections with names containing 'queue' automatically use infinite timeout (0) instead of the default 1-second timeout, enabling blocking operations like `BLPOP`.
+</Info>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Appropriate Drivers" icon="database">
+    Choose Redis for high-performance caching and queue operations, Memcached for simple key-value storage, and local for development or file-based needs.
+  </Card>
+  
+  <Card title="Set Expiration Times" icon="clock">
+    Always set expiration times for cached data to prevent memory bloat and stale data issues.
+  </Card>
+  
+  <Card title="Handle Cache Misses" icon="circle-exclamation">
+    Always check if cached data exists before using it, as cache entries can expire or be evicted.
+  </Card>
+  
+  <Card title="Use Namespacing" icon="layer-group">
+    Prefix your cache keys with namespaces (e.g., `user:`, `session:`) to organize data and enable pattern-based operations.
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+The cache system throws exceptions for invalid configurations:
+
+```php
+try {
+    cache('invalid_connection')->set('key', 'value');
+} catch (\Exception $e) {
+    // ERROR[Cache connection] Cache connection "invalid_connection" not found.
+    logger()->log($e->getMessage());
+}
+```
+
+## Example: Multi-Level Caching
+
+```php
+function getCachedUser($userId) {
+    // Try local cache first (fastest)
+    if ($user = cache('local')->read("cache/user_{$userId}.json")) {
+        return json_decode($user, true);
+    }
+    
+    // Try Redis (fast)
+    if ($user = cache('redis')->get("user:{$userId}")) {
+        // Store in local cache for next time
+        cache('local')->write("cache/user_{$userId}.json", json_encode($user));
+        return $user;
+    }
+    
+    // Fetch from database (slow)
+    $user = db()->query("SELECT * FROM users WHERE id = ?", [$userId]);
+    
+    // Cache in both layers
+    cache('redis')->set("user:{$userId}", $user, 'ex', 3600);
+    cache('local')->write("cache/user_{$userId}.json", json_encode($user));
+    
+    return $user;
+}
+```

@@ -1,0 +1,359 @@
+---
+title: Service container
+description: Learn how to use dependency injection and the service container in Aeros
+---
+
+The service container is a powerful tool for managing class dependencies and performing dependency injection. It allows you to register services once and access them throughout your application.
+
+## Introduction
+
+Aeros provides a built-in service container that extends the `Kernel` class and implements the singleton pattern. The container manages your application's services, resolves dependencies, and provides a clean way to access core components.
+
+## Registering services
+
+Services are registered through service providers during the bootstrap phase. There are two primary methods for registering services:
+
+### Using register()
+
+The `register()` method binds a service into the container:
+
+```php
+app()->register('logger', \Aeros\Src\Classes\Logger::class);
+
+// Register with a callable
+app()->register('config', function() {
+    return new Config(['env' => 'production']);
+});
+```
+
+From ServiceContainer.php:194-216, the register method accepts:
+- A **string** class name - Automatically instantiates the class
+- A **callable** - Executes when the service is resolved
+
+<Warning>
+If you try to register a class that doesn't exist, Aeros will throw an exception.
+</Warning>
+
+### Using singleton()
+
+The `singleton()` method ensures only one instance of a service exists:
+
+```php
+app()->singleton('database', \Aeros\Src\Classes\Db::class);
+```
+
+This is useful for services that should maintain state across your application (ServiceContainer.php:225-234).
+
+## Resolving services
+
+Once registered, you can retrieve services from the container in multiple ways:
+
+### Using get()
+
+```php
+$logger = app()->get('logger');
+```
+
+### Using magic properties
+
+The container implements `__get()` for cleaner syntax:
+
+```php
+// Automatically calls get('router')
+$router = app()->router;
+
+// Automatically calls get('request')
+$request = app()->request;
+```
+
+This works because of the magic method implementation (ServiceContainer.php:257-260):
+
+```php
+public function __get(string $name)
+{
+    return $this->get($name);
+}
+```
+
+### Retrieving all services
+
+```php
+$services = app()->getServices();
+```
+
+## Service providers
+
+Service providers are the central place for configuring and registering services. All providers must extend `Aeros\Src\Classes\ServiceProvider`.
+
+### Creating a service provider
+
+Service providers have two key methods:
+
+```php app/Providers/CustomServiceProvider.php
+<?php
+
+namespace App\Providers;
+
+use Aeros\Src\Classes\ServiceProvider;
+
+class CustomServiceProvider extends ServiceProvider
+{
+    /**
+     * Register service bindings
+     */
+    public function register(): void
+    {
+        app()->register('custom', function() {
+            return new CustomService();
+        });
+    }
+    
+    /**
+     * Bootstrap services after registration
+     */
+    public function boot(): void
+    {
+        // Perform actions after all services are registered
+        app()->custom->initialize();
+    }
+}
+```
+
+### Provider methods
+
+<AccordionGroup>
+  <Accordion title="register()" icon="pen-to-square">
+    Called first to register service bindings into the container. This is where you should bind interfaces to implementations or register singletons.
+  </Accordion>
+  
+  <Accordion title="boot()" icon="rocket">
+    Called after all providers have been registered. Use this method when your service needs to interact with other registered services.
+  </Accordion>
+</AccordionGroup>
+
+### Registering providers
+
+Add your provider to the configuration file:
+
+```php config/app.php
+return [
+    'providers' => [
+        'web' => [
+            \App\Providers\CustomServiceProvider::class,
+            // ... other providers
+        ],
+        'cli' => [
+            // CLI-specific providers
+        ]
+    ]
+];
+```
+
+The service container automatically loads different providers based on the execution mode (ServiceContainer.php:178).
+
+## Bootstrap process
+
+The service container orchestrates the application bootstrap in three phases:
+
+### 1. Boot application
+
+Initializes the main `AppServiceProvider` and sets up core functionality:
+
+```php
+public function bootApplication(): ServiceContainer
+{
+    if ($this->isAppBooted) {
+        return $this;
+    }
+
+    (new \App\Providers\AppServiceProvider)->register();
+
+    $this->isAppBooted = true;
+
+    return $this;
+}
+```
+
+### 2. Register providers
+
+Calls the `register()` method on all configured providers:
+
+```php
+public function registerProviders(): ServiceContainer
+{
+    foreach ($this->getProviders() as $providerWithNamespace) {
+        if ($this->isProvider($providerWithNamespace)) {
+            (new $providerWithNamespace)->register();
+        }
+    }
+
+    return $this;
+}
+```
+
+### 3. Boot providers
+
+Calls the `boot()` method on all registered providers:
+
+```php
+public function bootProviders(): ServiceContainer
+{
+    foreach ($this->getProviders() as $providerWithNamespace) {
+        if ($this->isProvider($providerWithNamespace)) {
+            (new $providerWithNamespace)->boot();
+        }
+    }
+
+    return $this;
+}
+```
+
+The entire bootstrap process is orchestrated by the `bootstrap()` method (ServiceContainer.php:95-100):
+
+```php
+public function bootstrap(): ServiceContainer
+{
+    return $this->bootApplication()
+            ->registerProviders()
+            ->bootProviders();
+}
+```
+
+## Accessing the container
+
+The service container is available globally through the `app()` helper function:
+
+```php
+// Get the container instance
+$container = app();
+
+// Access registered services
+$router = app()->router;
+$request = app()->request;
+$response = app()->response;
+```
+
+### Setting base directory
+
+The container maintains your application's base directory:
+
+```php
+app()->setBaseDir('/path/to/app');
+
+// Access later
+$basedir = app()->basedir;
+```
+
+## Common services
+
+Aeros registers several core services by default:
+
+<CardGroup cols={2}>
+  <Card title="router" icon="route">
+    Handles route registration and dispatching
+  </Card>
+  
+  <Card title="request" icon="arrow-right-to-bracket">
+    Manages incoming HTTP requests
+  </Card>
+  
+  <Card title="response" icon="arrow-right-from-bracket">
+    Handles HTTP responses
+  </Card>
+  
+  <Card title="view" icon="eye">
+    Renders view templates
+  </Card>
+</CardGroup>
+
+## Best practices
+
+<Steps>
+  <Step title="Register in providers">
+    Always register services through service providers, not directly in your application code.
+  </Step>
+  
+  <Step title="Use dependency injection">
+    Inject dependencies through constructors rather than accessing the container directly.
+  </Step>
+  
+  <Step title="Separate concerns">
+    Use the `register()` method only for binding. Use `boot()` for any logic that requires other services.
+  </Step>
+  
+  <Step title="Leverage singletons">
+    Use `singleton()` for stateful services like database connections or configuration managers.
+  </Step>
+</Steps>
+
+## Example: Custom service
+
+Here's a complete example of creating and using a custom service:
+
+```php app/Services/Analytics.php
+<?php
+
+namespace App\Services;
+
+class Analytics
+{
+    private $tracking = [];
+    
+    public function track($event, $data = [])
+    {
+        $this->tracking[] = [
+            'event' => $event,
+            'data' => $data,
+            'timestamp' => time()
+        ];
+    }
+    
+    public function getEvents()
+    {
+        return $this->tracking;
+    }
+}
+```
+
+```php app/Providers/AnalyticsServiceProvider.php
+<?php
+
+namespace App\Providers;
+
+use Aeros\Src\Classes\ServiceProvider;
+use App\Services\Analytics;
+
+class AnalyticsServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        app()->singleton('analytics', Analytics::class);
+    }
+    
+    public function boot(): void
+    {
+        // Track application boot
+        app()->analytics->track('app.booted');
+    }
+}
+```
+
+```php
+// Use in your application
+app()->analytics->track('user.login', ['user_id' => 123]);
+
+// Retrieve tracked events
+$events = app()->analytics->getEvents();
+```
+
+## Related resources
+
+<CardGroup cols={2}>
+  <Card title="Request lifecycle" icon="arrows-rotate" href="/concepts/lifecycle">
+    Understand how the container fits into the request lifecycle
+  </Card>
+  
+  <Card title="Architecture" icon="building" href="/concepts/architecture">
+    Learn about Aeros MVC architecture
+  </Card>
+</CardGroup>

@@ -1,0 +1,384 @@
+---
+title: "Basic Controllers"
+description: "Learn how to create and use controllers in the Aeros PHP framework"
+icon: "table-layout"
+---
+
+## Introduction
+
+Controllers in Aeros handle HTTP requests and return responses. They serve as the bridge between your routes and your application logic, organizing request handling in a clean, maintainable way.
+
+All controllers in Aeros extend the base `Controller` class and are stored in the `app/controllers/` directory under the `App\Controllers` namespace.
+
+## Creating Controllers
+
+### Using the CLI
+
+The easiest way to create a controller is using the Artisan-style command:
+
+```bash
+php aeros make:controller User
+```
+
+This creates a new controller file at `app/controllers/UserController.php`:
+
+```php UserController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+
+}
+```
+
+<Note>
+The `make:controller` command automatically appends "Controller" to the class name if it's not already present.
+</Note>
+
+### Manual Creation
+
+You can also create controllers manually. Just ensure they:
+
+1. Extend `Aeros\Src\Classes\Controller`
+2. Are placed in the `app/controllers/` directory
+3. Use the `App\Controllers` namespace
+
+```php ProductController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class ProductController extends Controller
+{
+    public function index()
+    {
+        return view('products.index');
+    }
+}
+```
+
+## Defining Controller Methods
+
+### Basic Methods
+
+Controller methods handle specific actions. They can return views, JSON responses, or any other content:
+
+```php UserController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        return view('users.index');
+    }
+
+    public function show()
+    {
+        return view('users.show');
+    }
+
+    public function create()
+    {
+        return view('users.create');
+    }
+}
+```
+
+### Returning Different Response Types
+
+Controllers can return various types of content:
+
+```php ApiController.php
+public function getUser()
+{
+    $user = ['id' => 1, 'name' => 'John Doe'];
+    
+    // Return JSON response
+    return response($user, 200, \Aeros\Src\Classes\Response::JSON);
+}
+
+public function getXmlData()
+{
+    $data = '<user><id>1</id><name>John</name></user>';
+    
+    // Return XML response
+    return response($data, 200, \Aeros\Src\Classes\Response::XML);
+}
+
+public function getHtml()
+{
+    // Return HTML view
+    return view('pages.home', ['title' => 'Welcome']);
+}
+```
+
+## Routing to Controllers
+
+### Controller@Method Syntax
+
+Routes can point to controller methods using the `Controller@method` syntax:
+
+```php routes/web.php
+use Aeros\Src\Classes\Router;
+
+Router::get('/users', 'UserController@index');
+Router::get('/users/create', 'UserController@create');
+Router::post('/users', 'UserController@store');
+```
+
+<Info>
+The framework automatically prepends `\App\Controllers\` to the controller name, so you don't need to specify the full namespace in routes.
+</Info>
+
+### Default Index Method
+
+If you omit the method name, Aeros calls the `index` method by default:
+
+```php routes/web.php
+// Both of these are equivalent:
+Router::get('/users', 'UserController@index');
+Router::get('/users', 'UserController');
+```
+
+### Route Parameters
+
+Controllers can accept route parameters. The parameter names in the route must match the method parameter names:
+
+```php routes/web.php
+// Define route with parameters
+Router::get('/users/{id}', 'UserController@show');
+Router::get('/posts/{postId}/comments/{commentId}', 'PostController@showComment');
+```
+
+```php UserController.php
+public function show($id)
+{
+    // $id is automatically injected from the route
+    return view('users.show', ['userId' => $id]);
+}
+```
+
+```php PostController.php
+public function showComment($postId, $commentId)
+{
+    // Both parameters are injected in order
+    return view('comments.show', [
+        'postId' => $postId,
+        'commentId' => $commentId
+    ]);
+}
+```
+
+<Warning>
+Parameter names in your controller method must exactly match the parameter names defined in the route (without the `:` prefix). Otherwise, Aeros will throw an exception.
+</Warning>
+
+## Accessing Request Data
+
+Use the global `request()` helper to access request data within controllers:
+
+```php UserController.php
+public function store()
+{
+    // Get all POST data
+    $data = request('post');
+    
+    // Get specific fields
+    $name = request('post', ['name']);
+    $email = request('post', ['email']);
+    
+    // Validate request data
+    $validated = validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email',
+    ]);
+    
+    return response(['success' => true], 201, \Aeros\Src\Classes\Response::JSON);
+}
+```
+
+### GET Requests
+
+```php SearchController.php
+public function search()
+{
+    // Access query parameters
+    $query = request('get', ['q']);
+    $page = request('get', ['page']) ?? 1;
+    
+    $results = performSearch($query, $page);
+    
+    return view('search.results', ['results' => $results]);
+}
+```
+
+## Helper Functions
+
+Aeros provides several global helper functions useful in controllers:
+
+```php
+// Get request instance or data
+request();
+request('post');
+request('get', ['key']);
+
+// Return responses
+response($data, 200, Response::JSON);
+abort($message, 403);
+
+// Render views
+view('template.name', $data);
+
+// Redirect
+redirect('/dashboard');
+redirect('/users', ['id' => 123]);
+
+// Access session
+session()->set('key', 'value');
+session()->get('key');
+
+// Database access
+db()->query('SELECT * FROM users');
+
+// Validation
+validate($rules);
+
+// CSRF protection
+csrf();
+```
+
+## Example: Complete CRUD Controller
+
+Here's a complete example of a controller handling CRUD operations:
+
+```php ArticleController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Response;
+
+class ArticleController extends Controller
+{
+    public function index()
+    {
+        $articles = db()->query('SELECT * FROM articles ORDER BY created_at DESC');
+        return view('articles.index', ['articles' => $articles]);
+    }
+
+    public function show($id)
+    {
+        $article = db()->query('SELECT * FROM articles WHERE id = ?', [$id])[0] ?? null;
+        
+        if (!$article) {
+            abort('Article not found', 404);
+        }
+        
+        return view('articles.show', ['article' => $article]);
+    }
+
+    public function create()
+    {
+        return view('articles.create');
+    }
+
+    public function store()
+    {
+        $validated = validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'author' => 'required|string'
+        ]);
+        
+        db()->insert('articles', $validated);
+        
+        return redirect('/articles');
+    }
+
+    public function edit($id)
+    {
+        $article = db()->query('SELECT * FROM articles WHERE id = ?', [$id])[0] ?? null;
+        
+        if (!$article) {
+            abort('Article not found', 404);
+        }
+        
+        return view('articles.edit', ['article' => $article]);
+    }
+
+    public function update($id)
+    {
+        $validated = validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+        ]);
+        
+        db()->update('articles', $validated, ['id' => $id]);
+        
+        return redirect('/articles/' . $id);
+    }
+
+    public function destroy($id)
+    {
+        db()->delete('articles', ['id' => $id]);
+        
+        return redirect('/articles');
+    }
+}
+```
+
+With corresponding routes:
+
+```php routes/web.php
+Router::get('/articles', 'ArticleController@index');
+Router::get('/articles/create', 'ArticleController@create');
+Router::post('/articles', 'ArticleController@store');
+Router::get('/articles/{id}', 'ArticleController@show');
+Router::get('/articles/{id}/edit', 'ArticleController@edit');
+Router::put('/articles/{id}', 'ArticleController@update');
+Router::delete('/articles/{id}', 'ArticleController@destroy');
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep controllers focused">
+    Each controller should handle a single resource or concern. If a controller grows too large, consider splitting it into multiple controllers.
+  </Accordion>
+  
+  <Accordion title="Use meaningful method names">
+    Follow REST conventions: `index`, `show`, `create`, `store`, `edit`, `update`, `destroy`.
+  </Accordion>
+  
+  <Accordion title="Validate input">
+    Always validate user input using the `validate()` helper before processing data.
+  </Accordion>
+  
+  <Accordion title="Handle errors gracefully">
+    Use `abort()` for error responses and check for null values when querying databases.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Resource Controllers" icon="arrows-rotate" href="/controllers/resource-controllers">
+    Learn about RESTful resource controllers for streamlined CRUD operations.
+  </Card>
+  
+  <Card title="Dependency Injection" icon="syringe" href="/controllers/dependency-injection">
+    Understand how to use dependency injection in your controllers.
+  </Card>
+</CardGroup>

@@ -1,0 +1,307 @@
+---
+title: Event & Observable
+description: API reference for the Aeros Event and Observable classes
+---
+
+The Event system implements the Observer pattern, allowing you to create event-driven applications with decoupled components.
+
+## Event Class
+
+### Namespace
+
+```php
+Aeros\Src\Classes\Event
+```
+
+### Methods
+
+#### addEventListener
+
+Adds an event listener to a given event name.
+
+```php
+public function addEventListener(
+    string|array $eventId,
+    string $event
+): Event
+```
+
+<ParamField path="eventId" type="string|array">
+  The unique identifier for the event. Can be a single ID or array of IDs.
+</ParamField>
+
+<ParamField path="event" type="string">
+  The fully qualified class name of the Observable event handler.
+</ParamField>
+
+**Returns:** `Event` instance for method chaining
+
+**Throws:** `\TypeError` if the event class doesn't extend `Observable`
+
+#### Usage Example
+
+```php
+$event = new Event();
+
+// Register single event listener
+$event->addEventListener('user.created', UserCreatedObserver::class);
+
+// Method chaining
+$event->addEventListener('user.updated', UserUpdatedObserver::class)
+      ->addEventListener('user.deleted', UserDeletedObserver::class);
+```
+
+#### emit
+
+Triggers an event and executes its registered observer.
+
+```php
+public function emit(
+    string $eventId,
+    mixed $eventData = '',
+    bool $deleteEvent = false
+): bool
+```
+
+<ParamField path="eventId" type="string">
+  The unique identifier of the event to trigger.
+</ParamField>
+
+<ParamField path="eventData" type="mixed" default="''">
+  Data to pass to the event observer's `update()` method.
+</ParamField>
+
+<ParamField path="deleteEvent" type="bool" default="false">
+  Whether to remove the event listener after triggering.
+</ParamField>
+
+**Returns:** `true` if event was found and triggered, `false` otherwise
+
+**Throws:** `\TypeError` if the observer class is invalid
+
+#### Usage Example
+
+```php
+// Emit event with data
+$event->emit('user.created', [
+    'id' => 123,
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+]);
+
+// One-time event (auto-delete after emit)
+$event->emit('user.verified', $userData, true);
+```
+
+#### isEvent
+
+Validates that a given class extends from `Observable`.
+
+```php
+public function isEvent(string $event): bool
+```
+
+<ParamField path="event" type="string">
+  The fully qualified class name to validate.
+</ParamField>
+
+**Returns:** `true` if valid
+
+**Throws:** `\TypeError` if the class doesn't exist or doesn't extend `Observable`
+
+#### Usage Example
+
+```php
+try {
+    $event->isEvent(UserCreatedObserver::class);
+    echo "Valid event observer";
+} catch (\TypeError $e) {
+    echo "Invalid observer: " . $e->getMessage();
+}
+```
+
+## Observable Class
+
+### Namespace
+
+```php
+Aeros\Src\Classes\Observable
+```
+
+### Properties
+
+```php
+protected $data;
+```
+
+Protected property for storing event data.
+
+### Methods
+
+#### update
+
+Abstract method that is called when the event is triggered. Must be implemented by all Observable classes.
+
+```php
+abstract public function update(mixed $eventData): bool
+```
+
+<ParamField path="eventData" type="mixed">
+  The data passed from the event emission.
+</ParamField>
+
+**Returns:** `true` if the update was successful, `false` otherwise
+
+### Creating Custom Observers
+
+To create a custom event observer, extend the `Observable` class and implement the `update()` method:
+
+```php
+use Aeros\Src\Classes\Observable;
+
+class UserCreatedObserver extends Observable
+{
+    public function update(mixed $eventData): bool
+    {
+        $this->data = $eventData;
+
+        // Send welcome email
+        $email = new SendEmailJob(
+            $eventData['email'],
+            'Welcome!',
+            "Hello {$eventData['name']}, welcome to our platform!"
+        );
+
+        queue()->push($email);
+
+        // Log user creation
+        logger()->info('New user created', [
+            'user_id' => $eventData['id'],
+            'email' => $eventData['email'],
+        ]);
+
+        return true;
+    }
+}
+```
+
+## Complete Event Flow Example
+
+### 1. Create Observer Classes
+
+```php
+// app/Observers/UserCreatedObserver.php
+namespace App\Observers;
+
+use Aeros\Src\Classes\Observable;
+
+class UserCreatedObserver extends Observable
+{
+    public function update(mixed $eventData): bool
+    {
+        // Send welcome email
+        $this->sendWelcomeEmail($eventData);
+
+        // Create user profile
+        $this->createUserProfile($eventData);
+
+        return true;
+    }
+
+    private function sendWelcomeEmail(array $data): void
+    {
+        queue()->push(new SendEmailJob(
+            $data['email'],
+            'Welcome to Our Platform',
+            view('emails.welcome', $data)
+        ));
+    }
+
+    private function createUserProfile(array $data): void
+    {
+        // Create default user profile
+        db()->table('user_profiles')->insert([
+            'user_id' => $data['id'],
+            'created_at' => time(),
+        ]);
+    }
+}
+```
+
+### 2. Register Event Listeners
+
+```php
+// app/bootstrap.php or routes file
+use App\Observers\UserCreatedObserver;
+use App\Observers\UserUpdatedObserver;
+
+$event = new Event();
+
+$event->addEventListener('user.created', UserCreatedObserver::class)
+      ->addEventListener('user.updated', UserUpdatedObserver::class)
+      ->addEventListener('user.deleted', UserDeletedObserver::class);
+```
+
+### 3. Emit Events
+
+```php
+// In your controller or service
+class UserController
+{
+    public function create()
+    {
+        // Create user
+        $userId = db()->table('users')->insert([
+            'name' => request()->name,
+            'email' => request()->email,
+            'password' => password_hash(request()->password, PASSWORD_BCRYPT),
+        ]);
+
+        // Emit event
+        event()->emit('user.created', [
+            'id' => $userId,
+            'name' => request()->name,
+            'email' => request()->email,
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+}
+```
+
+## Event System Architecture
+
+### Storage
+
+Events are stored in Memcached by default. The event ID is the cache key, and the observer class name is the value.
+
+### Event Flow
+
+1. **Register** - Observer is associated with an event ID using `addEventListener()`
+2. **Trigger** - Event is emitted with `emit()` along with relevant data
+3. **Retrieve** - Observer class is retrieved from cache
+4. **Instantiate** - New instance of observer is created
+5. **Execute** - Observer's `update()` method is called with event data
+6. **Cleanup** - Optionally delete event if `$deleteEvent` is `true`
+
+## Best Practices
+
+- Use descriptive event IDs (e.g., `'user.created'`, `'order.completed'`)
+- Keep observers focused on a single responsibility
+- Return `true` from `update()` on success, `false` on failure
+- Use one-time events (`$deleteEvent = true`) for ephemeral events
+- Handle errors gracefully within observers
+- Consider using the queue system for long-running observer tasks
+- Document all available events in your application
+
+## Helper Function
+
+The framework provides a global `event()` helper function:
+
+```php
+// Add listener
+event()->addEventListener('user.login', UserLoginObserver::class);
+
+// Emit event
+event()->emit('user.login', ['user_id' => 123]);
+```

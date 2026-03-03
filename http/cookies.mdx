@@ -1,0 +1,419 @@
+---
+title: Cookies
+description: Working with HTTP cookies in Aeros
+---
+
+The `Cookie` class provides a simple interface for managing HTTP cookies in Aeros, including setting, retrieving, and deleting cookies.
+
+## Setting Cookies
+
+### Basic Cookie
+
+```php
+use Aeros\Src\Classes\Cookie;
+
+$cookie = new Cookie();
+
+// Set a cookie (expires in 1 hour)
+$cookie->set(
+    'user_preference',
+    'dark_mode',
+    time() + 3600
+);
+```
+
+### Cookie with All Options
+
+```php
+$cookie->set(
+    name: 'session_token',
+    value: 'abc123xyz',
+    expiration: time() + (60 * 60 * 24), // 24 hours
+    path: '/',
+    domain: 'example.com',
+    secure: true,
+    httponly: true
+);
+```
+
+## Cookie Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | string | required | Cookie name |
+| `value` | mixed | required | Value to store |
+| `expiration` | int | required | Unix timestamp for expiration |
+| `path` | string | `/` | Path where cookie is available |
+| `domain` | string | `''` | Domain for the cookie |
+| `secure` | bool | `false` | HTTPS only |
+| `httponly` | bool | `false` | HTTP access only (no JavaScript) |
+
+## Getting Cookies
+
+### Retrieve Cookie Value
+
+```php
+$cookie = new Cookie();
+
+// Get cookie value
+$theme = $cookie->get('user_preference');
+
+if ($theme !== null) {
+    // Cookie exists
+    echo "User prefers: {$theme}";
+} else {
+    // Cookie not found
+    echo "No preference set";
+}
+```
+
+### Access via Request
+
+Cookies are also available through the `Request` class:
+
+```php
+use Aeros\Src\Classes\Request;
+
+$request = new Request();
+
+// Get all cookies
+$cookies = $request->getCookies();
+
+// Access specific cookie
+$sessionId = $request->cookies['session_id'] ?? null;
+```
+
+## Deleting Cookies
+
+### Delete Single Cookie
+
+```php
+$cookie = new Cookie();
+
+// Delete a cookie
+if ($cookie->delete('user_preference')) {
+    echo "Cookie deleted";
+} else {
+    echo "Cookie not found";
+}
+```
+
+### Delete All Cookies
+
+```php
+// Clear all cookies
+$cookie->clear();
+```
+
+<Warning>
+The `clear()` method removes all cookies from both `$_COOKIE` and `$_REQUEST` arrays. Use with caution.
+</Warning>
+
+## Common Use Cases
+
+### User Session
+
+```php
+$cookie = new Cookie();
+
+// Create session (expires in 30 days)
+$cookie->set(
+    'session_id',
+    $sessionToken,
+    time() + (60 * 60 * 24 * 30),
+    '/',
+    '',
+    true,  // Secure
+    true   // HTTP only
+);
+```
+
+### Remember Me
+
+```php
+// "Remember me" token (expires in 1 year)
+$cookie->set(
+    'remember_token',
+    $rememberToken,
+    time() + (60 * 60 * 24 * 365),
+    '/',
+    '',
+    true,
+    true
+);
+```
+
+### User Preferences
+
+```php
+// Save user preferences (expires in 1 year)
+$cookie->set(
+    'preferences',
+    json_encode([
+        'theme' => 'dark',
+        'language' => 'en',
+        'notifications' => true
+    ]),
+    time() + (60 * 60 * 24 * 365)
+);
+
+// Retrieve and decode
+$prefs = json_decode($cookie->get('preferences'), true);
+```
+
+### Tracking Cookie
+
+```php
+// Analytics cookie (expires in 90 days)
+$cookie->set(
+    'analytics_id',
+    $trackingId,
+    time() + (60 * 60 * 24 * 90),
+    '/',
+    '.example.com',  // Available across subdomains
+    false,
+    false
+);
+```
+
+## Cookie Expiration
+
+### Common Expiration Times
+
+```php
+// 1 hour
+$expiration = time() + 3600;
+
+// 1 day
+$expiration = time() + (60 * 60 * 24);
+
+// 1 week
+$expiration = time() + (60 * 60 * 24 * 7);
+
+// 30 days
+$expiration = time() + (60 * 60 * 24 * 30);
+
+// 1 year
+$expiration = time() + (60 * 60 * 24 * 365);
+
+// Session cookie (no expiration)
+$expiration = 0;
+```
+
+## Response Headers
+
+When you set or delete cookies, the appropriate `Set-Cookie` headers are automatically added to the response:
+
+```php
+$cookie->set('theme', 'dark', time() + 3600, '/', '', false, false);
+
+// Adds header:
+// Set-Cookie: theme=dark; expires=Wed, 04 Mar 2026 01:23:45 EST; path=/;
+```
+
+## Security Best Practices
+
+### Secure Cookies
+
+<Card title="Use HTTPS" icon="lock">
+Always set the `secure` flag to `true` for sensitive cookies in production:
+
+```php
+$cookie->set(
+    'auth_token',
+    $token,
+    $expiration,
+    '/',
+    '',
+    true,  // Secure - HTTPS only
+    true   // HTTP only
+);
+```
+</Card>
+
+### HTTP Only Flag
+
+<Card title="Prevent XSS" icon="shield-check">
+Use `httponly` flag to prevent JavaScript access to sensitive cookies:
+
+```php
+$cookie->set(
+    'session_id',
+    $sessionId,
+    $expiration,
+    '/',
+    '',
+    true,
+    true   // Prevents JavaScript access
+);
+```
+</Card>
+
+### Domain Restrictions
+
+<Card title="Limit Cookie Scope" icon="globe">
+Specify the domain to prevent cookies from being sent to unintended domains:
+
+```php
+// Available only on api.example.com
+$cookie->set(
+    'api_token',
+    $token,
+    $expiration,
+    '/',
+    'api.example.com',
+    true,
+    true
+);
+
+// Available on all subdomains
+$cookie->set(
+    'tracking_id',
+    $trackingId,
+    $expiration,
+    '/',
+    '.example.com',
+    false,
+    false
+);
+```
+</Card>
+
+### Path Restrictions
+
+<Card title="Restrict Cookie Path" icon="route">
+Limit cookies to specific paths:
+
+```php
+// Only available in /admin section
+$cookie->set(
+    'admin_session',
+    $sessionId,
+    $expiration,
+    '/admin',
+    '',
+    true,
+    true
+);
+```
+</Card>
+
+## Complete Examples
+
+### User Authentication
+
+```php
+class AuthController
+{
+    public function login(Request $request)
+    {
+        $cookie = new Cookie();
+        $credentials = $request->getPayload();
+
+        // Authenticate user...
+        $sessionToken = $this->createSession($userId);
+
+        // Set secure session cookie
+        $cookie->set(
+            'session_token',
+            $sessionToken,
+            time() + (60 * 60 * 2), // 2 hours
+            '/',
+            '',
+            true,  // HTTPS only
+            true   // No JavaScript access
+        );
+
+        // Optional: Remember me
+        if ($credentials['remember']) {
+            $rememberToken = $this->createRememberToken($userId);
+            $cookie->set(
+                'remember_token',
+                $rememberToken,
+                time() + (60 * 60 * 24 * 30), // 30 days
+                '/',
+                '',
+                true,
+                true
+            );
+        }
+
+        return response()->type([
+            'success' => true,
+            'message' => 'Logged in successfully'
+        ], 200, Response::JSON);
+    }
+
+    public function logout()
+    {
+        $cookie = new Cookie();
+
+        // Delete all auth cookies
+        $cookie->delete('session_token');
+        $cookie->delete('remember_token');
+
+        return response()->type([
+            'success' => true,
+            'message' => 'Logged out successfully'
+        ], 200, Response::JSON);
+    }
+}
+```
+
+### Multi-Language Support
+
+```php
+class LanguageController
+{
+    public function setLanguage(Request $request)
+    {
+        $cookie = new Cookie();
+        $lang = $request->language ?? 'en';
+
+        // Validate language
+        $allowed = ['en', 'es', 'fr', 'de'];
+        if (!in_array($lang, $allowed)) {
+            $lang = 'en';
+        }
+
+        // Save preference for 1 year
+        $cookie->set(
+            'user_language',
+            $lang,
+            time() + (60 * 60 * 24 * 365),
+            '/'
+        );
+
+        return response()->type([
+            'success' => true,
+            'language' => $lang
+        ], 200, Response::JSON);
+    }
+
+    public function getLanguage()
+    {
+        $cookie = new Cookie();
+        $lang = $cookie->get('user_language') ?? 'en';
+
+        return $lang;
+    }
+}
+```
+
+## Cookie Size Limits
+
+<Info>
+Browsers typically limit cookies to 4KB each. When setting cookies via the Request class, the total cookie size is limited (default: 4096 bytes) to prevent issues.
+</Info>
+
+```php
+// Be mindful of cookie size
+$largeData = json_encode($hugeArray);
+
+if (strlen($largeData) > 4000) {
+    // Store in database or session instead
+    session()->set('large_data', $largeData);
+} else {
+    $cookie->set('data', $largeData, $expiration);
+}
+```

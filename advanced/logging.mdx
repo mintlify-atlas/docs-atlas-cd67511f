@@ -1,0 +1,492 @@
+---
+title: 'Logging'
+description: 'Application logging and error tracking in Aeros'
+---
+
+## Overview
+
+Aeros provides a simple but effective logging system through the `Logger` class. Logs are written to files with timestamps, making it easy to track application behavior and debug issues.
+
+## Basic Usage
+
+Use the `logger()` helper function to log messages:
+
+```php
+// Log to default file (logs/error.log)
+logger()->log('Application started');
+
+// Log errors
+logger()->log('Database connection failed');
+
+// Log complex data
+logger()->log(['user_id' => 123, 'action' => 'login', 'ip' => '192.168.1.1']);
+```
+
+## Log Method
+
+```php
+logger()->log(
+    mixed $msg,              // Message or data to log
+    string $logFile = '',    // Optional custom log file path
+    bool $createFile = false // Create file if it doesn't exist
+): bool
+```
+
+### Parameters
+
+<ParamField path="msg" type="mixed" required>
+  The message or data to log. Can be a string, array, object, or any serializable data.
+</ParamField>
+
+<ParamField path="logFile" type="string" default="logs/error.log">
+  Path to the log file. If empty, defaults to `{basedir}/logs/error.log`.
+</ParamField>
+
+<ParamField path="createFile" type="bool" default="false">
+  Whether to create the log file if it doesn't exist.
+</ParamField>
+
+## Log Format
+
+All log entries include a timestamp:
+
+```
+[2026-03-03 14:23:15] User login successful: user@example.com
+[2026-03-03 14:23:45] Database query failed: Table 'users' doesn't exist
+[2026-03-03 14:24:10] a:3:{s:7:"user_id";i:123;s:6:"action";s:5:"login";s:2:"ip";s:13:"192.168.1.1";}
+```
+
+<Info>
+Non-string data is automatically serialized before logging, preserving complex data structures.
+</Info>
+
+## Custom Log Files
+
+Organize logs by creating separate log files:
+
+```php
+// Application logs
+logger()->log('App initialized', app()->basedir . '/logs/app.log');
+
+// Database logs
+logger()->log('Query executed', app()->basedir . '/logs/database.log');
+
+// API logs
+logger()->log('API request received', app()->basedir . '/logs/api.log');
+
+// Security logs
+logger()->log('Failed login attempt', app()->basedir . '/logs/security.log');
+```
+
+## Creating Log Files
+
+By default, logging to a non-existent file will log an error. Use the third parameter to create files:
+
+```php
+// Will create the file if it doesn't exist
+logger()->log(
+    'First log entry',
+    app()->basedir . '/logs/new-feature.log',
+    true // Create file flag
+);
+```
+
+<Warning>
+If a log file doesn't exist and `createFile` is `false`, an error is logged to the default error.log file.
+</Warning>
+
+## Practical Examples
+
+### Example 1: Error Logging
+
+```php
+function connectToDatabase() {
+    try {
+        $db = new PDO('mysql:host=localhost;dbname=myapp', 'user', 'pass');
+        logger()->log('Database connection successful');
+        return $db;
+        
+    } catch (PDOException $e) {
+        logger()->log('Database connection failed: ' . $e->getMessage());
+        throw $e;
+    }
+}
+```
+
+### Example 2: Request Logging
+
+```php
+function logRequest() {
+    $logData = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'method' => $_SERVER['REQUEST_METHOD'],
+        'uri' => $_SERVER['REQUEST_URI'],
+        'ip' => $_SERVER['REMOTE_ADDR'],
+        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+    ];
+    
+    logger()->log(
+        json_encode($logData),
+        app()->basedir . '/logs/requests.log',
+        true
+    );
+}
+```
+
+### Example 3: Debug Logging
+
+```php
+function processOrder($orderData) {
+    logger()->log('Processing order: ' . json_encode($orderData), app()->basedir . '/logs/orders.log');
+    
+    // Validate order
+    if (!validateOrder($orderData)) {
+        logger()->log('Order validation failed', app()->basedir . '/logs/orders.log');
+        return false;
+    }
+    
+    // Process payment
+    $paymentResult = processPayment($orderData);
+    logger()->log('Payment result: ' . json_encode($paymentResult), app()->basedir . '/logs/orders.log');
+    
+    if ($paymentResult['success']) {
+        logger()->log('Order completed successfully', app()->basedir . '/logs/orders.log');
+        return true;
+    }
+    
+    logger()->log('Order processing failed', app()->basedir . '/logs/orders.log');
+    return false;
+}
+```
+
+### Example 4: Performance Logging
+
+```php
+function logPerformance($operation, $startTime) {
+    $duration = microtime(true) - $startTime;
+    
+    logger()->log(
+        sprintf(
+            'Operation: %s | Duration: %.4f seconds',
+            $operation,
+            $duration
+        ),
+        app()->basedir . '/logs/performance.log',
+        true
+    );
+    
+    // Alert if slow
+    if ($duration > 1.0) {
+        logger()->log(
+            "SLOW OPERATION: {$operation} took {$duration} seconds",
+            app()->basedir . '/logs/slow-operations.log',
+            true
+        );
+    }
+}
+
+// Usage
+$start = microtime(true);
+$data = fetchDataFromApi();
+logPerformance('fetchDataFromApi', $start);
+```
+
+### Example 5: User Activity Logging
+
+```php
+function logUserActivity($userId, $action, $details = []) {
+    $entry = [
+        'user_id' => $userId,
+        'action' => $action,
+        'details' => $details,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'Unknown',
+    ];
+    
+    logger()->log(
+        json_encode($entry),
+        app()->basedir . '/logs/user-activity.log',
+        true
+    );
+}
+
+// Usage examples
+logUserActivity(123, 'login', ['method' => 'email']);
+logUserActivity(123, 'profile_update', ['field' => 'email']);
+logUserActivity(123, 'logout');
+```
+
+## Structured Logging
+
+Create a structured logging helper:
+
+```php app/Helpers/StructuredLogger.php
+class StructuredLogger
+{
+    public static function logEvent(
+        string $level,
+        string $message,
+        array $context = [],
+        string $logFile = ''
+    ): bool {
+        $entry = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'level' => strtoupper($level),
+            'message' => $message,
+            'context' => $context,
+        ];
+        
+        $logFile = $logFile ?: app()->basedir . '/logs/app.log';
+        
+        return logger()->log(json_encode($entry), $logFile, true);
+    }
+    
+    public static function debug(string $message, array $context = []): bool
+    {
+        return self::logEvent('debug', $message, $context);
+    }
+    
+    public static function info(string $message, array $context = []): bool
+    {
+        return self::logEvent('info', $message, $context);
+    }
+    
+    public static function warning(string $message, array $context = []): bool
+    {
+        return self::logEvent('warning', $message, $context);
+    }
+    
+    public static function error(string $message, array $context = []): bool
+    {
+        return self::logEvent('error', $message, $context);
+    }
+}
+```
+
+Usage:
+
+```php
+StructuredLogger::info('User logged in', ['user_id' => 123]);
+StructuredLogger::error('Payment failed', ['order_id' => 456, 'error' => 'Insufficient funds']);
+StructuredLogger::warning('High memory usage', ['usage' => '85%']);
+```
+
+## Log Rotation
+
+Implement log rotation to prevent files from growing too large:
+
+```php app/Crons/LogRotationCron.php
+class LogRotationCron extends Cron
+{
+    protected string $id = 'log-rotation';
+    
+    public function run()
+    {
+        app()->scheduler->call(function() {
+            $this->work();
+        })->daily()->at('00:00');
+    }
+    
+    public function work()
+    {
+        $logsDir = app()->basedir . '/logs';
+        $maxSize = 10 * 1024 * 1024; // 10 MB
+        
+        foreach (glob("{$logsDir}/*.log") as $logFile) {
+            if (filesize($logFile) > $maxSize) {
+                $timestamp = date('Y-m-d_H-i-s');
+                $archiveName = str_replace('.log', "_{$timestamp}.log", $logFile);
+                
+                // Rename current log
+                rename($logFile, $archiveName);
+                
+                // Compress old log
+                exec("gzip {$archiveName}");
+                
+                // Create new empty log
+                touch($logFile);
+                
+                logger()->log("Rotated log: {$logFile}");
+            }
+        }
+    }
+}
+```
+
+## Log Analysis
+
+Create a simple log viewer:
+
+```php commands/view-logs.php
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../bootstrap.php';
+
+$logFile = $argv[1] ?? 'error.log';
+$lines = $argv[2] ?? 50;
+
+$fullPath = app()->basedir . '/logs/' . $logFile;
+
+if (!file_exists($fullPath)) {
+    echo "Log file not found: {$fullPath}\n";
+    exit(1);
+}
+
+echo "Last {$lines} lines of {$logFile}:\n";
+echo "=" . str_repeat("=", 50) . "\n";
+
+passthru("tail -n {$lines} {$fullPath}");
+```
+
+Usage:
+
+```bash
+# View last 50 lines of error.log
+php commands/view-logs.php error.log
+
+# View last 100 lines of api.log
+php commands/view-logs.php api.log 100
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Be Descriptive" icon="message">
+    Write clear, descriptive log messages that include context and relevant data.
+  </Card>
+  
+  <Card title="Organize Logs" icon="folder">
+    Use separate log files for different components (API, database, auth, etc.).
+  </Card>
+  
+  <Card title="Log Levels" icon="layer-group">
+    Implement severity levels (debug, info, warning, error) for better filtering.
+  </Card>
+  
+  <Card title="Sensitive Data" icon="shield">
+    Never log sensitive information like passwords, credit cards, or API keys.
+  </Card>
+  
+  <Card title="Performance" icon="gauge">
+    Be mindful of logging overhead in high-traffic applications.
+  </Card>
+  
+  <Card title="Rotate Logs" icon="rotate">
+    Implement log rotation to prevent disk space issues.
+  </Card>
+</CardGroup>
+
+## Integration with Other Components
+
+### With Queue Jobs
+
+```php
+class SendEmailJob extends Job
+{
+    public function doWork(): bool
+    {
+        logger()->log("Starting email job: {$this->uuid}", app()->basedir . '/logs/jobs.log');
+        
+        try {
+            // Send email
+            mail($this->email, $this->subject, $this->body);
+            
+            logger()->log("Email sent successfully: {$this->uuid}", app()->basedir . '/logs/jobs.log');
+            return true;
+            
+        } catch (\Exception $e) {
+            logger()->log("Email job failed: {$this->uuid} - {$e->getMessage()}", app()->basedir . '/logs/jobs.log');
+            return false;
+        }
+    }
+}
+```
+
+### With Cron Jobs
+
+```php
+class DatabaseBackupCron extends Cron
+{
+    protected string $id = 'database-backup';
+    
+    public function work()
+    {
+        $logFile = app()->basedir . '/logs/cron.log';
+        
+        logger()->log("[{$this->id}] Starting backup", $logFile);
+        
+        try {
+            // Backup logic
+            $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+            exec("mysqldump -u user -p pass db > /backups/{$filename}");
+            
+            logger()->log("[{$this->id}] Backup completed: {$filename}", $logFile);
+            
+        } catch (\Exception $e) {
+            logger()->log("[{$this->id}] Backup failed: {$e->getMessage()}", $logFile);
+        }
+    }
+}
+```
+
+### With Events
+
+```php
+class UserRegisteredEvent extends Observable
+{
+    public function update(mixed $eventData): bool
+    {
+        logger()->log(
+            'User registered: ' . $eventData['email'],
+            app()->basedir . '/logs/events.log'
+        );
+        
+        // Trigger other actions
+        queue()->push(new SendWelcomeEmailJob($eventData));
+        
+        return true;
+    }
+}
+```
+
+## Log Directory Structure
+
+Recommended organization:
+
+```
+logs/
+├── error.log          # Default error log
+├── app.log            # Application events
+├── api.log            # API requests/responses
+├── database.log       # Database queries/errors
+├── jobs.log           # Queue job execution
+├── cron.log           # Scheduled task execution
+├── events.log         # Event emissions
+├── security.log       # Authentication/authorization
+├── performance.log    # Performance metrics
+└── user-activity.log  # User actions
+```
+
+## Monitoring Logs
+
+Create an alert system for critical errors:
+
+```php
+function logCriticalError(string $message, array $context = []): void
+{
+    // Log to file
+    logger()->log(
+        'CRITICAL: ' . $message . ' | ' . json_encode($context),
+        app()->basedir . '/logs/critical.log',
+        true
+    );
+    
+    // Send alert email
+    queue()->push(new SendAlertJob(
+        'admin@example.com',
+        'Critical Error Alert',
+        "Critical error occurred: {$message}\n\nContext: " . print_r($context, true)
+    ));
+}
+```

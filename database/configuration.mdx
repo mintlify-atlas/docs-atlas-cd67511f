@@ -1,0 +1,256 @@
+---
+title: Database Configuration
+description: Configure database connections in Aeros PHP framework
+---
+
+## Overview
+
+Aeros uses PDO (PHP Data Objects) for database connectivity, supporting multiple database drivers including MySQL, PostgreSQL, SQLite, and SQL Server.
+
+## Configuration
+
+Database connections are configured in your application's configuration file using the `db` configuration key.
+
+### Configuration Structure
+
+```php
+config('db', [
+    'default' => ['sqlite'],  // Default connection name
+    'connections' => [
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'server' => '/path/to/db',
+            'database' => 'database.sql',
+            'username' => '',
+            'password' => ''
+        ],
+        'mysql' => [
+            'driver' => 'mysql',
+            'server' => 'localhost',
+            'port' => '3306',
+            'database' => 'myapp',
+            'username' => 'root',
+            'password' => 'secret'
+        ],
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'server' => 'localhost',
+            'port' => '5432',
+            'database' => 'myapp',
+            'username' => 'postgres',
+            'password' => 'secret'
+        ],
+        'sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'server' => 'localhost',
+            'port' => '1433',
+            'database' => 'myapp',
+            'username' => 'sa',
+            'password' => 'secret'
+        ]
+    ]
+]);
+```
+
+## Supported Drivers
+
+<CardGroup cols={2}>
+  <Card title="MySQL" icon="database">
+    Standard MySQL/MariaDB database
+    ```php
+    'driver' => 'mysql'
+    ```
+  </Card>
+  
+  <Card title="PostgreSQL" icon="elephant">
+    PostgreSQL database
+    ```php
+    'driver' => 'pgsql'
+    ```
+  </Card>
+  
+  <Card title="SQLite" icon="file-code">
+    Lightweight file-based database
+    ```php
+    'driver' => 'sqlite'
+    ```
+  </Card>
+  
+  <Card title="SQL Server" icon="server">
+    Microsoft SQL Server
+    ```php
+    'driver' => 'sqlsrv'
+    ```
+  </Card>
+</CardGroup>
+
+## Connection Usage
+
+### Using Default Connection
+
+The framework automatically uses the default connection specified in your config:
+
+```php
+// Uses default connection
+$db = db()->connect();
+```
+
+### Using Named Connections
+
+You can specify a different connection by name:
+
+```php
+// Connect to MySQL
+$db = db()->connect('mysql');
+
+// Connect to PostgreSQL
+$db = db()->connect('pgsql');
+```
+
+### Multiple Connections
+
+Aeros maintains a pool of active database connections:
+
+```php
+// Get all active connections
+$connections = db()->getActiveDBConnections();
+
+// Get specific connection
+$pdo = db()->getDBConnection('mysql');
+```
+
+## Connection Options
+
+The Db class configures PDO with the following default options:
+
+```php
+[
+    PDO::ATTR_PERSISTENT => true,           // Use persistent connections
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,  // Throw exceptions on errors
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,  // Fetch as associative arrays
+    PDO::ATTR_TIMEOUT => 1,                 // Connection timeout (seconds)
+]
+```
+
+## Database Methods
+
+### Connection Management
+
+```php
+// Establish connection
+db()->connect('mysql');
+
+// Test connection
+if (db()->ping()) {
+    echo 'Database is connected';
+}
+
+// Get last inserted ID
+$id = db()->lastInsertId();
+```
+
+### Direct PDO Access
+
+The Db class provides transparent access to all PDO methods:
+
+```php
+// Prepare and execute
+db()->prepare('SELECT * FROM users WHERE id = ?')
+    ->execute([1])
+    ->fetch();
+
+// Get PDO instance directly
+$pdo = db()->getDBConnection();
+```
+
+## SQLite Configuration
+
+<Warning>
+  SQLite database files must have a `.sql` extension.
+</Warning>
+
+```php
+[
+    'driver' => 'sqlite',
+    'server' => '/var/www/storage/database',
+    'database' => 'app.sql',  // Must end with .sql
+    'username' => '',
+    'password' => ''
+]
+```
+
+## Error Handling
+
+The framework throws exceptions for database errors:
+
+```php
+try {
+    db()->connect('nonexistent');
+} catch (PDOException $e) {
+    // Handle connection error
+    echo $e->getMessage();
+}
+```
+
+### Connection Not Found
+
+```php
+// Throws: PDOException
+// ERROR[DB connection] DB connection "nonexistent" not found.
+db()->connect('nonexistent');
+```
+
+### Invalid Database File
+
+```php
+// Throws: InvalidArgumentException
+// ERROR[InvalidArgumentException] Database file name "database.db" is not valid.
+[
+    'driver' => 'sqlite',
+    'database' => 'database.db'  // ❌ Invalid extension
+]
+```
+
+## Best Practices
+
+<Check>
+  **Use environment variables** for sensitive credentials
+</Check>
+
+```php
+config('db', [
+    'connections' => [
+        'mysql' => [
+            'driver' => 'mysql',
+            'server' => env('DB_HOST', 'localhost'),
+            'database' => env('DB_NAME', 'myapp'),
+            'username' => env('DB_USER', 'root'),
+            'password' => env('DB_PASS', '')
+        ]
+    ]
+]);
+```
+
+<Check>
+  **Use persistent connections** for better performance (enabled by default)
+</Check>
+
+<Check>
+  **Set appropriate timeouts** based on your application needs
+</Check>
+
+<Warning>
+  **Never commit credentials** to version control
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Build complex queries with the fluent query builder
+  </Card>
+  
+  <Card title="Models" icon="cube" href="/database/models">
+    Work with database records using models
+  </Card>
+</CardGroup>

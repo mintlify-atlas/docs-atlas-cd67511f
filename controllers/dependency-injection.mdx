@@ -1,0 +1,589 @@
+---
+title: "Dependency Injection"
+description: "Learn how to use dependency injection and service container in Aeros controllers"
+icon: "syringe"
+---
+
+## Introduction
+
+Aeros uses a Service Container for dependency injection and service management. The container allows you to register services, manage dependencies, and access them throughout your application, including in controllers.
+
+## The Service Container
+
+The Service Container in Aeros is the central registry for all services and dependencies. It's accessible via the global `app()` helper function.
+
+### Container Architecture
+
+The Service Container (`Aeros\Src\Classes\ServiceContainer`) provides:
+
+- **Service Registration**: Register classes and callables as services
+- **Singleton Pattern**: Access services as singletons throughout the application
+- **Service Providers**: Bootstrap services during application initialization
+- **Dependency Resolution**: Automatically resolve dependencies
+
+## Accessing Services in Controllers
+
+### Using the app() Helper
+
+The most common way to access services is through the `app()` helper:
+
+```php UserController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        // Access database service
+        $users = app()->db->query('SELECT * FROM users');
+        
+        // Access request service
+        $search = app()->request->get('search');
+        
+        // Access session service
+        $userId = app()->session->get('user_id');
+        
+        return view('users.index', ['users' => $users]);
+    }
+}
+```
+
+### Available Core Services
+
+Aeros provides several built-in services accessible via `app()`:
+
+<AccordionGroup>
+  <Accordion title="app()->router">
+    The routing service for handling HTTP routes and dispatching requests.
+    ```php
+    $currentRoute = app()->router->getRoute();
+    $routes = app()->router->getRoutes('GET');
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->request">
+    Request service for accessing HTTP request data.
+    ```php
+    $postData = app()->request->post();
+    $queryParams = app()->request->get();
+    $headers = app()->request->headers();
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->response">
+    Response service for formatting and returning HTTP responses.
+    ```php
+    return app()->response->type($data, 200, Response::JSON);
+    return app()->response->redirect('/dashboard');
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->db">
+    Database service for executing queries.
+    ```php
+    $results = app()->db->query('SELECT * FROM posts');
+    app()->db->insert('users', $data);
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->view">
+    View service for rendering templates.
+    ```php
+    return app()->view->make('pages.home', $data);
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->session">
+    Session management service.
+    ```php
+    app()->session->set('key', 'value');
+    $value = app()->session->get('key');
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->cache">
+    Cache service supporting multiple drivers.
+    ```php
+    app()->cache->set('key', 'value', 3600);
+    $value = app()->cache->get('key');
+    ```
+  </Accordion>
+  
+  <Accordion title="app()->config">
+    Configuration service for accessing config files.
+    ```php
+    $dbConfig = app()->config->getFrom('db.connections.mysql');
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Constructor Injection
+
+While Aeros doesn't automatically inject dependencies into controller constructors, you can manually resolve dependencies in the constructor:
+
+```php ProductController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Db;
+use Aeros\Src\Classes\Cache;
+
+class ProductController extends Controller
+{
+    protected $db;
+    protected $cache;
+    
+    public function __construct()
+    {
+        parent::__construct();
+        
+        // Resolve dependencies from container
+        $this->db = app()->db;
+        $this->cache = app()->cache;
+    }
+    
+    public function index()
+    {
+        // Check cache first
+        $cacheKey = 'products.all';
+        $products = $this->cache->get($cacheKey);
+        
+        if (!$products) {
+            $products = $this->db->query('SELECT * FROM products');
+            $this->cache->set($cacheKey, $products, 3600);
+        }
+        
+        return view('products.index', ['products' => $products]);
+    }
+}
+```
+
+## Registering Custom Services
+
+### Using Service Providers
+
+Create custom service providers to register your services:
+
+```php app/Providers/RepositoryServiceProvider.php
+<?php
+
+namespace App\Providers;
+
+use Aeros\Src\Classes\ServiceProvider;
+use App\Repositories\UserRepository;
+use App\Repositories\ProductRepository;
+
+class RepositoryServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
+        // Register UserRepository as a service
+        app()->register('userRepository', UserRepository::class);
+        
+        // Register ProductRepository as a service
+        app()->register('productRepository', ProductRepository::class);
+    }
+    
+    public function boot()
+    {
+        // Additional bootstrapping if needed
+    }
+}
+```
+
+Register your provider in `config/app.php`:
+
+```php config/app.php
+return [
+    'providers' => [
+        'web' => [
+            \App\Providers\RepositoryServiceProvider::class,
+            // ... other providers
+        ]
+    ]
+];
+```
+
+### Using Singletons
+
+Register services as singletons to ensure only one instance exists:
+
+```php AppServiceProvider.php
+public function register()
+{
+    app()->singleton('paymentGateway', function() {
+        return new \App\Services\PaymentGateway(
+            config('payment.api_key'),
+            config('payment.secret')
+        );
+    });
+}
+```
+
+Access the singleton in controllers:
+
+```php PaymentController.php
+public function processPayment()
+{
+    $gateway = app()->paymentGateway;
+    $result = $gateway->charge($amount, $token);
+    
+    return response(['success' => $result], 200, Response::JSON);
+}
+```
+
+## Practical Examples
+
+### Repository Pattern
+
+Use dependency injection with the repository pattern:
+
+```php app/Repositories/UserRepository.php
+<?php
+
+namespace App\Repositories;
+
+class UserRepository
+{
+    protected $db;
+    
+    public function __construct()
+    {
+        $this->db = app()->db;
+    }
+    
+    public function findById($id)
+    {
+        return $this->db->query('SELECT * FROM users WHERE id = ?', [$id])[0] ?? null;
+    }
+    
+    public function findByEmail($email)
+    {
+        return $this->db->query('SELECT * FROM users WHERE email = ?', [$email])[0] ?? null;
+    }
+    
+    public function create(array $data)
+    {
+        return $this->db->insert('users', $data);
+    }
+    
+    public function update($id, array $data)
+    {
+        return $this->db->update('users', $data, ['id' => $id]);
+    }
+}
+```
+
+Use the repository in a controller:
+
+```php UserController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+    protected $userRepository;
+    
+    public function __construct()
+    {
+        parent::__construct();
+        $this->userRepository = app()->userRepository;
+    }
+    
+    public function show($id)
+    {
+        $user = $this->userRepository->findById($id);
+        
+        if (!$user) {
+            abort('User not found', 404);
+        }
+        
+        return view('users.show', ['user' => $user]);
+    }
+    
+    public function update($id)
+    {
+        $validated = validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email'
+        ]);
+        
+        $this->userRepository->update($id, $validated);
+        
+        return redirect('/users/' . $id);
+    }
+}
+```
+
+### Service Classes
+
+Create service classes for complex business logic:
+
+```php app/Services/OrderService.php
+<?php
+
+namespace App\Services;
+
+class OrderService
+{
+    protected $db;
+    protected $cache;
+    
+    public function __construct()
+    {
+        $this->db = app()->db;
+        $this->cache = app()->cache;
+    }
+    
+    public function createOrder($userId, array $items)
+    {
+        // Begin transaction
+        $this->db->beginTransaction();
+        
+        try {
+            // Create order
+            $orderId = $this->db->insert('orders', [
+                'user_id' => $userId,
+                'total' => $this->calculateTotal($items),
+                'status' => 'pending',
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+            
+            // Insert order items
+            foreach ($items as $item) {
+                $this->db->insert('order_items', [
+                    'order_id' => $orderId,
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'price' => $item['price']
+                ]);
+                
+                // Update stock
+                $this->updateStock($item['product_id'], -$item['quantity']);
+            }
+            
+            $this->db->commit();
+            
+            // Clear relevant caches
+            $this->cache->delete('user.' . $userId . '.orders');
+            
+            return $orderId;
+            
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            throw $e;
+        }
+    }
+    
+    protected function calculateTotal(array $items)
+    {
+        return array_reduce($items, function($total, $item) {
+            return $total + ($item['price'] * $item['quantity']);
+        }, 0);
+    }
+    
+    protected function updateStock($productId, $quantity)
+    {
+        $this->db->query(
+            'UPDATE products SET stock = stock + ? WHERE id = ?',
+            [$quantity, $productId]
+        );
+    }
+}
+```
+
+Register the service:
+
+```php AppServiceProvider.php
+public function register()
+{
+    app()->singleton('orderService', \App\Services\OrderService::class);
+}
+```
+
+Use in controller:
+
+```php OrderController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Response;
+
+class OrderController extends Controller
+{
+    public function store()
+    {
+        $validated = validate([
+            'items' => 'required|array',
+            'items.*.product_id' => 'required|integer',
+            'items.*.quantity' => 'required|integer|min:1'
+        ]);
+        
+        try {
+            $userId = session()->get('user_id');
+            $orderId = app()->orderService->createOrder($userId, $validated['items']);
+            
+            return response([
+                'success' => true,
+                'order_id' => $orderId,
+                'message' => 'Order created successfully'
+            ], 201, Response::JSON);
+            
+        } catch (\Exception $e) {
+            return response([
+                'success' => false,
+                'message' => 'Failed to create order: ' . $e->getMessage()
+            ], 500, Response::JSON);
+        }
+    }
+}
+```
+
+### External API Integration
+
+Create services for external API integrations:
+
+```php app/Services/EmailService.php
+<?php
+
+namespace App\Services;
+
+class EmailService
+{
+    protected $apiKey;
+    protected $apiUrl;
+    
+    public function __construct()
+    {
+        $this->apiKey = env('EMAIL_API_KEY');
+        $this->apiUrl = env('EMAIL_API_URL');
+    }
+    
+    public function send($to, $subject, $body)
+    {
+        // Implementation using cURL or HTTP client
+        $result = app()->request->curl($this->apiUrl . '/send', [
+            'to' => $to,
+            'subject' => $subject,
+            'body' => $body,
+            'api_key' => $this->apiKey
+        ]);
+        
+        return $result;
+    }
+}
+```
+
+## Helper Functions
+
+Aeros provides helper functions that internally use the service container:
+
+```php
+// Instead of app()->db
+db()->query('SELECT * FROM users');
+
+// Instead of app()->request
+request('post');
+
+// Instead of app()->cache
+cache()->set('key', 'value');
+
+// Instead of app()->session
+session()->set('key', 'value');
+
+// Instead of app()->config
+config('app.name');
+```
+
+These helpers make your code more concise:
+
+```php UserController.php
+public function update($id)
+{
+    $validated = validate([
+        'name' => 'required|string',
+        'email' => 'required|email'
+    ]);
+    
+    db()->update('users', $validated, ['id' => $id]);
+    
+    session()->set('success', 'Profile updated successfully');
+    
+    return redirect('/users/' . $id);
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use service providers for registration">
+    Register all custom services in dedicated service providers rather than in controllers or routes.
+  </Accordion>
+  
+  <Accordion title="Keep controllers thin">
+    Move complex business logic to service classes and repositories. Controllers should only coordinate between services and return responses.
+  </Accordion>
+  
+  <Accordion title="Use singletons for stateless services">
+    Register services as singletons when they don't maintain state between requests (e.g., API clients, repositories).
+  </Accordion>
+  
+  <Accordion title="Leverage helper functions">
+    Use Aeros helper functions (`db()`, `cache()`, `session()`) for cleaner, more readable code.
+  </Accordion>
+  
+  <Accordion title="Type hint service dependencies">
+    When injecting services in constructors, use type hints for better IDE support and clarity.
+  </Accordion>
+</AccordionGroup>
+
+## Advanced: Custom Service Container Methods
+
+The Service Container provides several methods for advanced usage:
+
+```php
+// Register a service
+app()->register('serviceName', ServiceClass::class);
+
+// Register with a factory callable
+app()->register('serviceName', function() {
+    return new ServiceClass(config('service.options'));
+});
+
+// Register as singleton
+app()->singleton('serviceName', ServiceClass::class);
+
+// Get a registered service
+$service = app()->get('serviceName');
+
+// Check if service is registered
+if (isset(app()->getServices()['serviceName'])) {
+    // Service exists
+}
+
+// Magic property access
+$service = app()->serviceName;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Controllers" icon="table-layout" href="/controllers/basic-controllers">
+    Review the fundamentals of creating and using controllers.
+  </Card>
+  
+  <Card title="Resource Controllers" icon="arrows-rotate" href="/controllers/resource-controllers">
+    Learn about RESTful resource controllers and CRUD operations.
+  </Card>
+</CardGroup>

@@ -1,0 +1,105 @@
+---
+title: Cache
+description: API reference for the Aeros Cache class
+---
+
+The `Cache` class provides a unified interface for working with different cache drivers including Memcached, Redis, and local file-based caching.
+
+## Namespace
+
+```php
+Aeros\Src\Classes\Cache
+```
+
+## Methods
+
+### setConnection
+
+Sets or picks a cache connection based on the configuration.
+
+```php
+public function setConnection(string $connection = null)
+```
+
+<ParamField path="connection" type="string" default="null">
+  The name of the cache connection to use. If not provided, uses the default connection from configuration.
+</ParamField>
+
+**Returns:** The cache connection object (Memcached, Predis\Client, or File)
+
+**Throws:** `\Exception` if the specified connection is not found in configuration
+
+#### Supported Drivers
+
+- **memcached** - Uses PHP Memcached extension with compression enabled
+- **redis** - Uses Predis client with configurable timeouts
+- **local** - Uses file-based caching
+
+#### Usage Example
+
+```php
+// Use default cache connection
+$cache = new Cache();
+$cache->setConnection();
+
+// Use specific named connection
+$cache->setConnection('redis');
+
+// For queue operations (infinite timeout)
+$cache->setConnection('queue');
+```
+
+#### Configuration
+
+The cache connection settings are defined in `config/cache.php`:
+
+```php
+return [
+    'default' => 'redis',
+    'connections' => [
+        'memcached' => [
+            'driver' => 'memcached',
+        ],
+        'redis' => [
+            'driver' => 'redis',
+        ],
+        'queue' => [
+            'driver' => 'redis',
+        ],
+        'local' => [
+            'driver' => 'local',
+        ],
+    ],
+];
+```
+
+#### Environment Variables
+
+**For Memcached:**
+- `MEMCACHED_HOST` - Memcached server host
+- `MEMCACHED_PORT` - Memcached server port
+
+**For Redis:**
+- `REDIS_PROTOCOL` - Redis protocol (tcp/unix)
+- `REDIS_HOST` - Redis server host
+- `REDIS_PORT` - Redis server port
+- `REDIS_PASSWORD` - Redis authentication password
+
+## Helper Function
+
+The framework provides a global `cache()` helper function for convenient access:
+
+```php
+// Get default cache connection
+$value = cache()->get('key');
+
+// Get specific connection
+$value = cache('redis')->get('key');
+```
+
+## Notes
+
+- Redis connections for queue operations use infinite timeout (0) to support blocking operations like `BLPOP`
+- Regular Redis cache connections use a 1-second timeout
+- Memcached connections have compression enabled by default
+- The class uses the `Proxyable` trait for method delegation to the underlying driver

@@ -1,0 +1,233 @@
+---
+title: Controller
+description: Base controller class for handling HTTP requests
+---
+
+The `Controller` class serves as the base class for all application controllers. It provides a foundation for implementing request handling logic and can be extended to add custom functionality.
+
+## Overview
+
+Controllers in Aeros are responsible for handling incoming HTTP requests and returning responses. They act as the intermediary between routes and your application logic.
+
+## Usage
+
+Extend the `Controller` class to create your own controllers:
+
+```php
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+    public function index()
+    {
+        $users = User::find(['active', '=', true]);
+        return view('users.index', ['users' => $users]);
+    }
+
+    public function show($id)
+    {
+        $user = User::find($id);
+        return view('users.show', ['user' => $user]);
+    }
+
+    public function store()
+    {
+        $validated = app()->request->validate([
+            'name' => FILTER_SANITIZE_STRING,
+            'email' => FILTER_VALIDATE_EMAIL,
+        ]);
+
+        $user = User::create($validated);
+        return response()->type($user, 201, Response::JSON);
+    }
+}
+```
+
+## Constructor
+
+The base `Controller` class has a constructor that is called when a controller is instantiated. This can be used for initialization logic that applies to all actions.
+
+```php
+public function __construct()
+```
+
+<ResponseField name="return" type="void">
+  Constructor is called when the controller is instantiated
+</ResponseField>
+
+## Best practices
+
+### Keep controllers thin
+
+Controllers should delegate business logic to models, services, or other classes:
+
+```php
+class OrderController extends Controller
+{
+    public function store()
+    {
+        $data = app()->request->getPayload();
+        
+        // Good: Delegate to a service
+        $order = OrderService::create($data);
+        
+        return response()->type($order, 201, Response::JSON);
+    }
+}
+```
+
+### Use dependency injection
+
+Inject dependencies through the constructor or method parameters:
+
+```php
+class PaymentController extends Controller
+{
+    private PaymentGateway $gateway;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->gateway = app()->make(PaymentGateway::class);
+    }
+
+    public function process()
+    {
+        return $this->gateway->charge(app()->request->getPayload());
+    }
+}
+```
+
+### Return consistent responses
+
+Use the Response class for consistent output formatting:
+
+```php
+class ApiController extends Controller
+{
+    public function success($data, $message = 'Success')
+    {
+        return response()->type([
+            'success' => true,
+            'message' => $message,
+            'data' => $data
+        ], 200, Response::JSON);
+    }
+
+    public function error($message, $code = 400)
+    {
+        return response()->type([
+            'success' => false,
+            'message' => $message
+        ], $code, Response::JSON);
+    }
+}
+```
+
+## Examples
+
+### REST controller
+
+```php
+class PostController extends Controller
+{
+    public function index()
+    {
+        $posts = Post::find(['published', '=', true]);
+        return response()->type($posts, 200, Response::JSON);
+    }
+
+    public function show($id)
+    {
+        $post = Post::find($id);
+        if (!$post) {
+            return response()->type(['error' => 'Not found'], 404, Response::JSON);
+        }
+        return response()->type($post, 200, Response::JSON);
+    }
+
+    public function store()
+    {
+        $data = app()->request->validateWith([
+            'title' => 'string',
+            'body' => 'string',
+        ]);
+
+        $post = Post::create($data);
+        return response()->type($post, 201, Response::JSON);
+    }
+
+    public function update($id)
+    {
+        $post = Post::find($id);
+        $data = app()->request->getPayload();
+        
+        $post->update($data)->commit();
+        return response()->type($post, 200, Response::JSON);
+    }
+
+    public function destroy($id)
+    {
+        Post::delete(['id', '=', $id])->commit();
+        return response()->type(['message' => 'Deleted'], 200, Response::JSON);
+    }
+}
+```
+
+### View controller
+
+```php
+class HomeController extends Controller
+{
+    public function index()
+    {
+        return view('home', [
+            'title' => 'Welcome',
+            'featured' => Post::find(['featured', '=', true])
+        ]);
+    }
+
+    public function about()
+    {
+        return view('about');
+    }
+
+    public function contact()
+    {
+        if (app()->request->getMethod() === 'POST') {
+            $data = app()->request->validateWith([
+                'name' => 'string',
+                'email' => 'email',
+                'message' => 'string',
+            ]);
+
+            // Send email logic here
+            
+            return redirect('/contact?success=1');
+        }
+
+        return view('contact');
+    }
+}
+```
+
+## Accessing services
+
+Controllers can access framework services through the `app()` helper:
+
+```php
+class UserController extends Controller
+{
+    public function index()
+    {
+        // Access request
+        $query = app()->request->getQuery();
+        
+        // Access router
+        $currentRoute = app()->router->getRoute();
+        
+        // Access response
+        return app()->response->type($data, 200, Response::JSON);
+    }
+}
+```

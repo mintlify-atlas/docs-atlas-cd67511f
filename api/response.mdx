@@ -1,0 +1,360 @@
+---
+title: Response
+description: Handle HTTP responses and output formatting
+---
+
+The `Response` class handles HTTP responses, manages headers, sets response codes, and formats output for different content types including JSON, HTML, XML, and more.
+
+## Accessing the response
+
+Access the response instance:
+
+```php
+$response = app()->response;
+```
+
+## Content type constants
+
+The Response class provides constants for common content types:
+
+```php
+Response::JSON  // 'json'
+Response::HTML  // 'html'
+Response::XML   // 'xml'
+Response::CSS   // 'css'
+Response::JS    // 'js'
+Response::TXT   // 'txt'
+Response::CSV   // 'csv'
+Response::PDF   // 'pdf'
+Response::PNG   // 'png'
+Response::JPG   // 'jpg'
+Response::GIF   // 'gif'
+Response::SVG   // 'svg'
+Response::ICO   // 'ico'
+```
+
+## Sending responses
+
+### type()
+
+Output data with a specific content type and response code.
+
+```php
+// JSON response
+return app()->response->type(['message' => 'Success'], 200, Response::JSON);
+
+// HTML response
+return app()->response->type('<h1>Hello World</h1>', 200, Response::HTML);
+
+// Custom status code
+return app()->response->type(['error' => 'Not Found'], 404, Response::JSON);
+```
+
+<ParamField path="data" type="mixed" required>
+  Data to output (array, string, object, etc.)
+</ParamField>
+
+<ParamField path="code" type="int" default="null">
+  HTTP status code (defaults to 200)
+</ParamField>
+
+<ParamField path="type" type="string" default="Response::HTML">
+  Content type constant
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Returns formatted output based on type
+</ResponseField>
+
+## Headers
+
+### addHeaders()
+
+Add headers to the response.
+
+```php
+app()->response->addHeaders([
+    'Content-Type' => 'application/json',
+    'X-Custom-Header' => 'Custom Value',
+    'Cache-Control' => 'no-cache, no-store, must-revalidate'
+]);
+```
+
+<ParamField path="headers" type="array" default="[]">
+  Associative array of headers to add
+</ParamField>
+
+<ResponseField name="return" type="Response">
+  Returns Response instance for method chaining
+</ResponseField>
+
+### removeHeaders()
+
+Remove specific headers from the response.
+
+```php
+app()->response->removeHeaders(['Content-type', 'X-Custom-Header']);
+```
+
+<ParamField path="headers" type="array" default="[]">
+  Array of header names to remove
+</ParamField>
+
+<ResponseField name="return" type="Response">
+  Returns Response instance for method chaining
+</ResponseField>
+
+### getHeaders()
+
+Get all headers that will be sent with the response.
+
+```php
+$headers = app()->response->getHeaders();
+```
+
+<ResponseField name="return" type="array">
+  Returns array of headers
+</ResponseField>
+
+### sendHeaders()
+
+Send all headers and response code.
+
+```php
+app()->response
+    ->addHeaders(['X-API-Version' => '1.0'])
+    ->withResponseCode(200)
+    ->sendHeaders();
+```
+
+<ResponseField name="return" type="void">
+  Sends headers and sets HTTP response code
+</ResponseField>
+
+### assignHeadersToResponse()
+
+Assign headers to the response without sending them.
+
+```php
+app()->response->assignHeadersToResponse();
+```
+
+<ParamField path="headers" type="array" default="[]">
+  Optional array of headers (not used in current implementation)
+</ParamField>
+
+<ResponseField name="return" type="Response">
+  Returns Response instance for method chaining
+</ResponseField>
+
+## Status codes
+
+### withResponseCode()
+
+Set the HTTP response code.
+
+```php
+app()->response->withResponseCode(201); // Created
+app()->response->withResponseCode(404); // Not Found
+app()->response->withResponseCode(500); // Internal Server Error
+```
+
+<ParamField path="code" type="int" required>
+  HTTP status code
+</ParamField>
+
+<ResponseField name="return" type="void">
+  Sets the response code
+</ResponseField>
+
+## Examples
+
+### JSON API responses
+
+```php
+class ApiController extends Controller
+{
+    public function success($data, $message = 'Success')
+    {
+        return app()->response->type([
+            'success' => true,
+            'message' => $message,
+            'data' => $data
+        ], 200, Response::JSON);
+    }
+
+    public function error($message, $code = 400)
+    {
+        return app()->response->type([
+            'success' => false,
+            'message' => $message
+        ], $code, Response::JSON);
+    }
+
+    public function notFound()
+    {
+        return app()->response->type([
+            'error' => 'Resource not found'
+        ], 404, Response::JSON);
+    }
+}
+```
+
+### RESTful responses
+
+```php
+class UserController extends Controller
+{
+    public function index()
+    {
+        $users = User::find(['active', '=', true]);
+        return app()->response->type($users, 200, Response::JSON);
+    }
+
+    public function store()
+    {
+        $data = app()->request->getPayload();
+        $user = User::create($data);
+        
+        return app()->response->type([
+            'message' => 'User created successfully',
+            'user' => $user
+        ], 201, Response::JSON);
+    }
+
+    public function update($id)
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return app()->response->type(
+                ['error' => 'User not found'], 
+                404, 
+                Response::JSON
+            );
+        }
+
+        $data = app()->request->getPayload();
+        $user->update($data)->commit();
+        
+        return app()->response->type($user, 200, Response::JSON);
+    }
+
+    public function destroy($id)
+    {
+        User::delete([['id', '=', $id]])->commit();
+        return app()->response->type(
+            ['message' => 'User deleted'], 
+            200, 
+            Response::JSON
+        );
+    }
+}
+```
+
+### Custom headers
+
+```php
+// CORS headers
+app()->response->addHeaders([
+    'Access-Control-Allow-Origin' => '*',
+    'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE',
+    'Access-Control-Allow-Headers' => 'Content-Type, Authorization'
+]);
+
+// Cache control
+app()->response->addHeaders([
+    'Cache-Control' => 'public, max-age=3600',
+    'Expires' => gmdate('D, d M Y H:i:s', time() + 3600) . ' GMT'
+]);
+
+// Security headers
+app()->response->addHeaders([
+    'X-Content-Type-Options' => 'nosniff',
+    'X-Frame-Options' => 'DENY',
+    'X-XSS-Protection' => '1; mode=block',
+    'Strict-Transport-Security' => 'max-age=31536000'
+]);
+```
+
+### Different content types
+
+```php
+// XML response
+$xml = '<?xml version="1.0"?><users><user>John</user></users>';
+return app()->response->type($xml, 200, Response::XML);
+
+// Plain text
+return app()->response->type('Hello World', 200, Response::TXT);
+
+// CSV download
+app()->response->addHeaders([
+    'Content-Disposition' => 'attachment; filename="users.csv"'
+]);
+return app()->response->type($csvData, 200, Response::CSV);
+
+// PDF response
+app()->response->addHeaders([
+    'Content-Disposition' => 'inline; filename="document.pdf"'
+]);
+return app()->response->type($pdfContent, 200, Response::PDF);
+```
+
+### Conditional responses
+
+```php
+class FileController extends Controller
+{
+    public function download($id)
+    {
+        $file = File::find($id);
+        
+        if (!$file) {
+            return app()->response->type(
+                ['error' => 'File not found'], 
+                404, 
+                Response::JSON
+            );
+        }
+
+        $type = match($file->extension) {
+            'pdf' => Response::PDF,
+            'jpg', 'jpeg' => Response::JPG,
+            'png' => Response::PNG,
+            'json' => Response::JSON,
+            default => Response::TXT
+        };
+
+        app()->response->addHeaders([
+            'Content-Disposition' => "attachment; filename=\"{$file->name}\""
+        ]);
+
+        return app()->response->type($file->content, 200, $type);
+    }
+}
+```
+
+### API versioning with headers
+
+```php
+class ApiController extends Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+        
+        app()->response->addHeaders([
+            'X-API-Version' => '2.0',
+            'X-RateLimit-Limit' => '100',
+            'X-RateLimit-Remaining' => '95'
+        ]);
+    }
+
+    public function index()
+    {
+        return app()->response->type([
+            'version' => '2.0',
+            'endpoints' => ['/users', '/posts', '/comments']
+        ], 200, Response::JSON);
+    }
+}
+```

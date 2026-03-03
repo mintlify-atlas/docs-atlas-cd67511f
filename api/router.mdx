@@ -1,0 +1,347 @@
+---
+title: Router
+description: Core router class for HTTP request routing and middleware management
+---
+
+The `Router` class manages HTTP method routing, parses registered routes, and handles the current requested URI. It provides a fluent interface for defining routes and middleware.
+
+## Static route methods
+
+Define routes using static HTTP method calls.
+
+### get()
+
+Register a GET route.
+
+```php
+Router::get('/users', [UserController::class, 'index']);
+Router::get('/users/{id}', [UserController::class, 'show']);
+```
+
+<ParamField path="route" type="string" required>
+  The URI pattern to match (supports parameters like `{id}`)
+</ParamField>
+
+<ParamField path="handler" type="callable|string" required>
+  Callback function or controller method to handle the request
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns a Route instance for method chaining
+</ResponseField>
+
+### post()
+
+Register a POST route.
+
+```php
+Router::post('/users', [UserController::class, 'store']);
+```
+
+<ParamField path="route" type="string" required>
+  The URI pattern to match
+</ParamField>
+
+<ParamField path="handler" type="callable|string" required>
+  Callback function or controller method
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns a Route instance
+</ResponseField>
+
+### put()
+
+Register a PUT route.
+
+```php
+Router::put('/users/{id}', [UserController::class, 'update']);
+```
+
+<ParamField path="route" type="string" required>
+  The URI pattern to match
+</ParamField>
+
+<ParamField path="handler" type="callable|string" required>
+  Callback function or controller method
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns a Route instance
+</ResponseField>
+
+### patch()
+
+Register a PATCH route.
+
+```php
+Router::patch('/users/{id}', [UserController::class, 'patch']);
+```
+
+<ParamField path="route" type="string" required>
+  The URI pattern to match
+</ParamField>
+
+<ParamField path="handler" type="callable|string" required>
+  Callback function or controller method
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns a Route instance
+</ResponseField>
+
+### delete()
+
+Register a DELETE route.
+
+```php
+Router::delete('/users/{id}', [UserController::class, 'destroy']);
+```
+
+<ParamField path="route" type="string" required>
+  The URI pattern to match
+</ParamField>
+
+<ParamField path="handler" type="callable|string" required>
+  Callback function or controller method
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns a Route instance
+</ResponseField>
+
+## Instance methods
+
+### addRoute()
+
+Register a Route object manually.
+
+```php
+$route = new Route('/api/users', [UserController::class, 'index']);
+app()->router->addRoute('GET', $route);
+```
+
+<ParamField path="method" type="string" required>
+  HTTP method (GET, POST, PUT, PATCH, DELETE)
+</ParamField>
+
+<ParamField path="route" type="Route" required>
+  Route instance to register
+</ParamField>
+
+<ResponseField name="return" type="Route">
+  Returns the registered Route instance
+</ResponseField>
+
+### dispatch()
+
+Dispatch the content for the current route and method.
+
+```php
+app()->router->dispatch();
+```
+
+<ResponseField name="return" type="mixed">
+  Returns the handler response content
+</ResponseField>
+
+### getRoute()
+
+Get the current route being processed.
+
+```php
+$currentRoute = app()->router->getRoute();
+```
+
+<ResponseField name="return" type="Route">
+  Returns the current Route instance
+</ResponseField>
+
+### match()
+
+Confirm if a URI and HTTP method match any registered route.
+
+```php
+$route = app()->router->match('GET', '/users/123');
+```
+
+<ParamField path="method" type="string" required>
+  HTTP method to match
+</ParamField>
+
+<ParamField path="uri" type="string" required>
+  URI to match against registered routes
+</ParamField>
+
+<ResponseField name="return" type="bool|Route">
+  Returns Route instance if matched, false otherwise
+</ResponseField>
+
+### getUriParts()
+
+Parse a URI and return its parts and subdomain.
+
+```php
+$parts = app()->router->getUriParts('/users/123');
+// Returns: ['parts' => ['users', '123'], 'subdomain' => '*']
+```
+
+<ParamField path="uri" type="string" required>
+  URI to parse
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Array containing 'parts' and 'subdomain' keys
+</ResponseField>
+
+### parseRoute()
+
+Deconstruct a route to extract URI parts and subdomain.
+
+```php
+app()->router->parseRoute($route);
+```
+
+<ParamField path="route" type="Route" required>
+  Route instance to parse
+</ParamField>
+
+<ResponseField name="return" type="void">
+  Modifies the route object in place
+</ResponseField>
+
+### getRoutes()
+
+Get all registered routes, optionally filtered by method and subdomain.
+
+```php
+$routes = app()->router->getRoutes('GET', '*');
+```
+
+<ParamField path="method" type="string" default="">
+  HTTP method to filter by
+</ParamField>
+
+<ParamField path="subdomain" type="string" default="*">
+  Subdomain to filter by
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Array of registered routes
+</ResponseField>
+
+## Static utility methods
+
+### group()
+
+Group routes to apply middleware to multiple routes.
+
+```php
+Router::group('auth,web', function() {
+    Router::get('/dashboard', [DashboardController::class, 'index']);
+    Router::get('/profile', [ProfileController::class, 'show']);
+});
+```
+
+<ParamField path="middlewares" type="string|array" required>
+  Comma-separated string or array of middleware names
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+  Callback function containing route definitions
+</ParamField>
+
+<ResponseField name="return" type="void">
+  Routes defined in callback will have middleware applied
+</ResponseField>
+
+### runMiddlewares()
+
+Execute an array of middleware classes.
+
+```php
+Router::runMiddlewares([AuthMiddleware::class, CorsMiddleware::class]);
+```
+
+<ParamField path="middlewares" type="array" required>
+  Array of middleware class names
+</ParamField>
+
+<ResponseField name="return" type="void">
+  Executes each middleware in sequence
+</ResponseField>
+
+### loadRequestedRoutes()
+
+Load routes based on the current environment and URI.
+
+```php
+Router::loadRequestedRoutes();
+```
+
+<ResponseField name="return" type="void">
+  Loads appropriate route files for web or CLI environment
+</ResponseField>
+
+### validateRequestedRoutesByFile()
+
+Load routes from a specific route file.
+
+```php
+Router::validateRequestedRoutesByFile('api');
+```
+
+<ParamField path="routeFile" type="string" default="web">
+  Name of the route file to load (without .php extension)
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  Returns true if routes were loaded successfully
+</ResponseField>
+
+## Examples
+
+### Basic routing
+
+```php
+Router::get('/', function() {
+    return view('home');
+});
+
+Router::post('/users', [UserController::class, 'store']);
+```
+
+### Route parameters
+
+```php
+Router::get('/users/{id}', function($id) {
+    return User::find($id);
+});
+
+Router::get('/posts/{slug}/comments/{comment}', [
+    CommentController::class, 'show'
+]);
+```
+
+### Subdomain routing
+
+```php
+// Routes for admin.domain.com
+Router::get('admin@/dashboard', [AdminController::class, 'dashboard']);
+```
+
+### Middleware groups
+
+```php
+Router::group('auth', function() {
+    Router::get('/dashboard', [DashboardController::class, 'index']);
+    Router::post('/logout', [AuthController::class, 'logout']);
+});
+```
+
+### Chained middleware
+
+```php
+Router::get('/admin', [AdminController::class, 'index'])
+    ->withMiddleware([AuthMiddleware::class, AdminMiddleware::class]);
+```

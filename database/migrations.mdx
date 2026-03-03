@@ -1,0 +1,440 @@
+---
+title: Migrations
+description: Database migrations and schema management in Aeros
+---
+
+## Overview
+
+Database migrations allow you to version control your database schema, making it easy to track changes and collaborate with your team.
+
+<Info>
+  Aeros supports migrations through PDO, working with MySQL, PostgreSQL, SQLite, and SQL Server.
+</Info>
+
+## Creating Migrations
+
+Migrations are SQL files that define schema changes.
+
+### Basic Migration Structure
+
+```sql
+-- migrations/001_create_users_table.sql
+
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+```
+
+### Migration Naming
+
+Use descriptive, sequential names:
+
+```
+migrations/
+  001_create_users_table.sql
+  002_create_posts_table.sql
+  003_add_status_to_users.sql
+  004_create_roles_table.sql
+  005_create_role_user_pivot.sql
+```
+
+## Database-Specific Syntax
+
+### SQLite
+
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### MySQL
+
+```sql
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### PostgreSQL
+
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### SQL Server
+
+```sql
+CREATE TABLE users (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(255) NOT NULL,
+    email NVARCHAR(255) UNIQUE NOT NULL,
+    created_at DATETIME2 DEFAULT GETDATE()
+);
+```
+
+## Running Migrations
+
+### Using PDO Directly
+
+```php
+// Load and execute migration
+$sql = file_get_contents(__DIR__ . '/migrations/001_create_users_table.sql');
+
+db()->connect();
+db()->exec($sql);
+```
+
+### Migration Runner Script
+
+Create a simple migration runner:
+
+```php
+// migrate.php
+
+require __DIR__ . '/vendor/autoload.php';
+
+$migrationsPath = __DIR__ . '/migrations';
+$migrations = glob($migrationsPath . '/*.sql');
+
+sort($migrations);
+
+db()->connect();
+db()->beginTransaction();
+
+try {
+    foreach ($migrations as $migration) {
+        echo "Running: " . basename($migration) . "\n";
+        $sql = file_get_contents($migration);
+        db()->exec($sql);
+    }
+    
+    db()->commit();
+    echo "Migrations completed successfully!\n";
+    
+} catch (Exception $e) {
+    db()->rollBack();
+    echo "Migration failed: " . $e->getMessage() . "\n";
+}
+```
+
+Run with:
+
+```bash
+php migrate.php
+```
+
+## Common Migration Patterns
+
+### Create Table
+
+```sql
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    status VARCHAR(50) DEFAULT 'draft',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_posts_user_id ON posts(user_id);
+CREATE INDEX idx_posts_status ON posts(status);
+```
+
+### Add Column
+
+```sql
+-- Add new column
+ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+
+-- Add with default value
+ALTER TABLE users ADD COLUMN verified BOOLEAN DEFAULT 0;
+```
+
+### Modify Column
+
+```sql
+-- SQLite (requires table recreation)
+BEGIN TRANSACTION;
+
+CREATE TABLE users_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(500) UNIQUE NOT NULL,  -- Changed size
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO users_new SELECT * FROM users;
+DROP TABLE users;
+ALTER TABLE users_new RENAME TO users;
+
+COMMIT;
+
+-- MySQL/PostgreSQL
+ALTER TABLE users MODIFY COLUMN email VARCHAR(500);
+```
+
+### Create Pivot Table
+
+```sql
+CREATE TABLE role_user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(role_id, user_id)
+);
+
+CREATE INDEX idx_role_user_role_id ON role_user(role_id);
+CREATE INDEX idx_role_user_user_id ON role_user(user_id);
+```
+
+### Drop Table
+
+```sql
+DROP TABLE IF EXISTS old_table;
+```
+
+### Create Index
+
+```sql
+CREATE INDEX idx_users_email ON users(email);
+CREATE UNIQUE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_posts_user_status ON posts(user_id, status);
+```
+
+## Migration Tracking
+
+### Create Migrations Table
+
+```sql
+CREATE TABLE migrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    migration VARCHAR(255) NOT NULL UNIQUE,
+    batch INTEGER NOT NULL,
+    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Track Executed Migrations
+
+```php
+// Check if migration was run
+$result = db()->prepare(
+    "SELECT * FROM migrations WHERE migration = ?"
+)->execute(['001_create_users_table.sql'])->fetch();
+
+if (!$result) {
+    // Run migration
+    $sql = file_get_contents('migrations/001_create_users_table.sql');
+    db()->exec($sql);
+    
+    // Record migration
+    db()->prepare(
+        "INSERT INTO migrations (migration, batch) VALUES (?, ?)"
+    )->execute(['001_create_users_table.sql', 1]);
+}
+```
+
+## Rollback Migrations
+
+Create separate rollback files:
+
+```sql
+-- migrations/001_create_users_table.sql
+CREATE TABLE users (...);
+
+-- migrations/rollback/001_create_users_table.sql
+DROP TABLE IF EXISTS users;
+```
+
+## Seeding Data
+
+Create seed files for initial data:
+
+```sql
+-- seeds/001_seed_roles.sql
+
+INSERT INTO roles (name, description) VALUES
+    ('admin', 'Administrator'),
+    ('moderator', 'Moderator'),
+    ('user', 'Regular User');
+```
+
+## Cross-Database Migrations
+
+Use conditional logic for different databases:
+
+```php
+$driver = config('db.connections.' . config('db.default')[0] . '.driver');
+
+if ($driver === 'sqlite') {
+    $sql = file_get_contents('migrations/sqlite/001_create_users.sql');
+} elseif ($driver === 'mysql') {
+    $sql = file_get_contents('migrations/mysql/001_create_users.sql');
+} elseif ($driver === 'pgsql') {
+    $sql = file_get_contents('migrations/pgsql/001_create_users.sql');
+}
+
+db()->exec($sql);
+```
+
+## Best Practices
+
+<Check>
+  **Use transactions** to ensure migrations are atomic
+</Check>
+
+<Check>
+  **Version migrations** with sequential numbers or timestamps
+</Check>
+
+<Check>
+  **Test rollbacks** to ensure they work correctly
+</Check>
+
+<Check>
+  **Add indexes** on foreign keys and frequently queried columns
+</Check>
+
+<Check>
+  **Document complex migrations** with comments
+</Check>
+
+<Warning>
+  **Backup before migrations** in production environments
+</Warning>
+
+<Warning>
+  **Never modify existing migrations** after they've been run in production
+</Warning>
+
+## Example Migration System
+
+```php
+// MigrationRunner.php
+
+class MigrationRunner
+{
+    private $migrationsPath;
+    private $db;
+    
+    public function __construct($migrationsPath)
+    {
+        $this->migrationsPath = $migrationsPath;
+        $this->db = db()->connect();
+        $this->ensureMigrationsTable();
+    }
+    
+    private function ensureMigrationsTable()
+    {
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL UNIQUE,
+                batch INTEGER NOT NULL,
+                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+    }
+    
+    public function run()
+    {
+        $migrations = glob($this->migrationsPath . '/*.sql');
+        sort($migrations);
+        
+        $batch = $this->getNextBatch();
+        $executed = 0;
+        
+        $this->db->beginTransaction();
+        
+        try {
+            foreach ($migrations as $file) {
+                $name = basename($file);
+                
+                if ($this->hasRun($name)) {
+                    continue;
+                }
+                
+                echo "Migrating: {$name}\n";
+                
+                $sql = file_get_contents($file);
+                $this->db->exec($sql);
+                
+                $this->recordMigration($name, $batch);
+                $executed++;
+            }
+            
+            $this->db->commit();
+            echo "Migrated {$executed} files\n";
+            
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+    
+    private function hasRun($name)
+    {
+        $result = $this->db->prepare(
+            "SELECT * FROM migrations WHERE migration = ?"
+        )->execute([$name])->fetch();
+        
+        return (bool) $result;
+    }
+    
+    private function recordMigration($name, $batch)
+    {
+        $this->db->prepare(
+            "INSERT INTO migrations (migration, batch) VALUES (?, ?)"
+        )->execute([$name, $batch]);
+    }
+    
+    private function getNextBatch()
+    {
+        $result = $this->db->query(
+            "SELECT MAX(batch) as max_batch FROM migrations"
+        )->fetch();
+        
+        return ($result['max_batch'] ?? 0) + 1;
+    }
+}
+
+// Usage
+$runner = new MigrationRunner(__DIR__ . '/migrations');
+$runner->run();
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="cube" href="/database/models">
+    Create models for your database tables
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/database/configuration">
+    Configure database connections
+  </Card>
+</CardGroup>

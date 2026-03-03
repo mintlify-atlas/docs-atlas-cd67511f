@@ -1,0 +1,461 @@
+---
+title: Request Validation
+description: Validating request data in Aeros
+---
+
+Aeros provides built-in request validation through the `Request` class and the `Validatable` trait for comprehensive data validation.
+
+## Request Validation
+
+The `Request` class offers quick validation methods using PHP filters.
+
+### Basic Validation
+
+```php
+use Aeros\Src\Classes\Request;
+
+$request = new Request();
+
+// Define validation rules
+$rules = [
+    'email' => FILTER_VALIDATE_EMAIL,
+    'age' => FILTER_VALIDATE_INT,
+    'website' => FILTER_VALIDATE_URL,
+    'ip_address' => FILTER_VALIDATE_IP
+];
+
+// Validate and get filtered data
+try {
+    $validated = $request->validate($rules);
+    // All fields passed validation
+} catch (ValueError $e) {
+    // Validation failed
+    echo $e->getMessage();
+}
+```
+
+### Validation with Options
+
+```php
+// Validate with custom options
+$rules = [
+    'age' => [
+        'filter' => FILTER_VALIDATE_INT,
+        'options' => [
+            'min_range' => 18,
+            'max_range' => 100
+        ]
+    ],
+    'email' => FILTER_VALIDATE_EMAIL
+];
+
+$validated = $request->validate($rules);
+```
+
+### Quick Validation
+
+Use predefined validation rules:
+
+```php
+// Use named validation rules
+$validated = $request->validateWith([
+    'email' => 'email',
+    'age' => 'int',
+    'website' => 'url',
+    'score' => 'float',
+    'active' => 'boolean'
+]);
+```
+
+### Available Quick Rules
+
+```php
+$rules = Request::validationRules();
+
+// Returns:
+[
+    'email' => FILTER_VALIDATE_EMAIL,
+    'url' => FILTER_VALIDATE_URL,
+    'ip' => FILTER_VALIDATE_IP,
+    'int' => FILTER_VALIDATE_INT,
+    'float' => FILTER_VALIDATE_FLOAT,
+    'boolean' => FILTER_VALIDATE_BOOLEAN,
+    'string' => FILTER_SANITIZE_STRING,
+    'encoded' => FILTER_SANITIZE_ENCODED,
+    'special_chars' => FILTER_SANITIZE_SPECIAL_CHARS
+]
+```
+
+### Single Field Validation
+
+```php
+// Validate individual field
+$email = $request->validateField('email', FILTER_VALIDATE_EMAIL);
+
+if ($email === null) {
+    // Validation failed or field missing
+}
+
+// With options
+$age = $request->validateField('age', [
+    'filter' => FILTER_VALIDATE_INT,
+    'options' => ['min_range' => 18]
+]);
+```
+
+### Silent Validation
+
+```php
+// Don't throw exceptions on validation failure
+$validated = $request->validate($rules, false);
+
+// Check manually for false values
+if ($validated['email'] === false) {
+    // Email validation failed
+}
+```
+
+## Validatable Trait
+
+For advanced validation, use the `Validatable` trait in your models or controllers.
+
+### Using the Trait
+
+```php
+use Aeros\Src\Traits\Validatable;
+
+class UserController
+{
+    use Validatable;
+
+    public function create(Request $request)
+    {
+        $data = $request->getPayload();
+
+        $this->validate($data, [
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:8',
+            'age' => 'required|integer|min:18|max:100',
+            'username' => 'required|alphanumeric|min:3',
+            'website' => 'url'
+        ]);
+
+        // Data is valid
+    }
+}
+```
+
+## Validation Rules
+
+### Required
+
+```php
+'field' => 'required'
+```
+
+Field must be present and not empty.
+
+### Email
+
+```php
+'email' => 'email'
+'email' => 'required|email'
+```
+
+Must be a valid email address.
+
+### URL
+
+```php
+'website' => 'url'
+'website' => 'required|url'
+```
+
+Must be a valid URL.
+
+### Integer
+
+```php
+'age' => 'integer'
+'age' => 'required|integer'
+```
+
+Must be an integer value.
+
+### Numeric
+
+```php
+'price' => 'numeric'
+'price' => 'required|numeric|min:0'
+```
+
+Must be a numeric value (int or float).
+
+### Boolean
+
+```php
+'active' => 'boolean'
+```
+
+Accepts: `true`, `false`, `0`, `1`, `'0'`, `'1'`, `'true'`, `'false'`, `'on'`, `'off'`, `'yes'`, `'no'`
+
+### Min and Max
+
+```php
+// String length (minimum 3 characters)
+'username' => 'min:3'
+
+// Numeric value (minimum 18)
+'age' => 'integer|min:18'
+
+// String length (maximum 255 characters)
+'title' => 'max:255'
+
+// Numeric value (maximum 100)
+'age' => 'integer|min:18|max:100'
+```
+
+### Alpha and Alphanumeric
+
+```php
+// Only letters
+'name' => 'alpha'
+
+// Letters and numbers only
+'username' => 'alphanumeric'
+```
+
+### Regex
+
+```php
+// Custom pattern
+'phone' => 'regex:/^\+?[0-9]{10,15}$/'
+'slug' => 'regex:/^[a-z0-9-]+$/'
+```
+
+### In and Not In
+
+```php
+// Must be one of the listed values
+'status' => 'in:active,pending,inactive'
+'role' => 'required|in:admin,user,guest'
+
+// Must not be one of the listed values
+'username' => 'not_in:admin,root,system'
+```
+
+### Same and Different
+
+```php
+// Must match another field
+'password_confirmation' => 'same:password'
+
+// Must be different from another field
+'new_email' => 'different:old_email'
+```
+
+### Date
+
+```php
+// Default format: Y-m-d
+'birthdate' => 'date'
+
+// Custom format
+'appointment' => 'date:Y-m-d H:i:s'
+'created_at' => 'date:d/m/Y'
+```
+
+### Unique (Database)
+
+```php
+// Check if unique in table
+'email' => 'unique:users,email'
+
+// Exclude current record when updating (ID = 5)
+'email' => 'unique:users,email,5'
+```
+
+<Note>
+The `unique` rule requires database access and uses the `db()` helper function.
+</Note>
+
+## Validation Examples
+
+### User Registration
+
+```php
+use Aeros\Src\Traits\Validatable;
+
+class UserController
+{
+    use Validatable;
+
+    public function register(Request $request)
+    {
+        $data = $request->getPayload();
+
+        $this->validate($data, [
+            'username' => 'required|alphanumeric|min:3|max:20|unique:users,username',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:8',
+            'password_confirmation' => 'required|same:password',
+            'age' => 'required|integer|min:18',
+            'website' => 'url',
+            'terms' => 'required|boolean'
+        ]);
+
+        // Create user...
+    }
+}
+```
+
+### Profile Update
+
+```php
+public function updateProfile(Request $request, $userId)
+{
+    $data = $request->getPayload();
+
+    $this->validate($data, [
+        'email' => "required|email|unique:users,email,{$userId}",
+        'name' => 'required|min:2|max:100',
+        'bio' => 'max:500',
+        'website' => 'url',
+        'age' => 'integer|min:18|max:120'
+    ]);
+
+    // Update profile...
+}
+```
+
+### API Request
+
+```php
+public function createPost(Request $request)
+{
+    $data = $request->getPayload();
+
+    $this->validate($data, [
+        'title' => 'required|min:5|max:200',
+        'content' => 'required|min:10',
+        'status' => 'required|in:draft,published,archived',
+        'category_id' => 'required|integer',
+        'tags' => 'alphanumeric',
+        'publish_date' => 'date:Y-m-d',
+        'featured' => 'boolean'
+    ]);
+
+    // Create post...
+}
+```
+
+## Handling Validation Errors
+
+### Getting Errors
+
+```php
+use Aeros\Src\Traits\Validatable;
+
+class Controller
+{
+    use Validatable;
+
+    public function process(Request $request)
+    {
+        $data = $request->getPayload();
+
+        $isValid = $this->validate($data, $rules);
+
+        if (!$this->isValid()) {
+            $errors = $this->getValidationErrors();
+            
+            return response()->type([
+                'success' => false,
+                'errors' => $errors
+            ], 400, Response::JSON);
+        }
+
+        // Process valid data...
+    }
+}
+```
+
+### Error Format
+
+```php
+// Validation errors are grouped by field
+[
+    'email' => [
+        'Must be a valid email address.',
+        'This value already exists.'
+    ],
+    'password' => [
+        'Must be at least 8 characters.'
+    ]
+]
+```
+
+### Exception Handling
+
+```php
+try {
+    $this->validate($data, $rules);
+} catch (\InvalidArgumentException $e) {
+    // Validation failed
+    $message = $e->getMessage();
+    // Returns: "Validation failed: email: Must be a valid email; password: Must be at least 8 characters"
+}
+```
+
+## Custom Validation Rules
+
+Extend the `Validatable` trait with custom rules:
+
+```php
+use Aeros\Src\Traits\Validatable;
+
+class CustomValidator
+{
+    use Validatable;
+
+    protected function validatePhone(mixed $value, array $params, array $allData): bool|string
+    {
+        if (is_null($value) || $value === '') {
+            return true;
+        }
+
+        if (!preg_match('/^\+?[0-9]{10,15}$/', $value)) {
+            return "Must be a valid phone number.";
+        }
+
+        return true;
+    }
+}
+
+// Usage
+$validator = new CustomValidator();
+$validator->validate($data, [
+    'phone' => 'required|phone'
+]);
+```
+
+## Best Practices
+
+<Card title="Validate Early" icon="shield-check">
+Validate request data as early as possible in your request lifecycle to fail fast and provide clear error messages.
+</Card>
+
+<Card title="Use Appropriate Rules" icon="list-check">
+Combine multiple validation rules for comprehensive data validation:
+```php
+'email' => 'required|email|unique:users,email'
+```
+</Card>
+
+<Card title="Sanitize Input" icon="broom">
+Remember that validation checks format, but the Request class automatically sanitizes input to remove null bytes and trim whitespace.
+</Card>
+
+<Card title="Clear Error Messages" icon="message-exclamation">
+Return validation errors in a consistent, user-friendly format for better API/form error handling.
+</Card>

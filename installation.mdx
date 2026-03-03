@@ -1,0 +1,258 @@
+---
+title: Installation
+description: Install Aeros framework using Composer and set up your development environment.
+---
+
+# Installation
+
+Aeros requires PHP 8.2 or higher and uses Composer for dependency management. Follow these steps to get started with Aeros.
+
+## Requirements
+
+Before installing Aeros, make sure your system meets these requirements:
+
+- PHP >= 8.2
+- Composer
+- A web server (Apache, Nginx, or PHP's built-in server)
+- MySQL, PostgreSQL, or another supported database (optional)
+
+<Note>
+  Aeros uses modern PHP features like typed properties and match expressions, which require PHP 8.2 or higher.
+</Note>
+
+## Install via Composer
+
+<Steps>
+  <Step title="Create a new project">
+    Use Composer to create a new Aeros project:
+
+    ```bash
+    composer create-project aeros/framework my-app
+    ```
+
+    This will create a new directory called `my-app` with Aeros and all its dependencies installed.
+  </Step>
+
+  <Step title="Navigate to your project">
+    Change into your new project directory:
+
+    ```bash
+    cd my-app
+    ```
+  </Step>
+
+  <Step title="Configure your environment">
+    Copy the example environment file and configure your application settings:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open the `.env` file and update the configuration values:
+
+    ```bash
+    APP_NAME="My Aeros App"
+    APP_ENV=local
+    APP_DEBUG=true
+    APP_URL=http://localhost:8000
+
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=my_database
+    DB_USERNAME=root
+    DB_PASSWORD=
+    ```
+  </Step>
+
+  <Step title="Generate application key">
+    Generate a secure application key for encryption:
+
+    ```bash
+    php aeros key:generate
+    ```
+  </Step>
+
+  <Step title="Run database migrations">
+    If you're using a database, run the migrations to set up your schema:
+
+    ```bash
+    php aeros db:migrate
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    Start the built-in PHP development server:
+
+    ```bash
+    php aeros run:app
+    ```
+
+    Or use PHP's built-in server directly:
+
+    ```bash
+    php -S localhost:8000 -t public
+    ```
+
+    Your application will be available at `http://localhost:8000`.
+  </Step>
+</Steps>
+
+<Tip>
+  The `php aeros run:app` command starts the development server and watches for file changes, making it ideal for local development.
+</Tip>
+
+## Add to existing project
+
+If you want to add Aeros as a dependency to an existing project:
+
+```bash
+composer require aeros/framework
+```
+
+Then set up your project structure to match Aeros conventions or customize the framework to fit your needs.
+
+## Directory structure
+
+After installation, your project will have the following structure:
+
+```
+my-app/
+├── app/
+│   ├── Controllers/      # HTTP controllers
+│   ├── Models/          # Database models
+│   ├── Middleware/      # Request middleware
+│   └── Providers/       # Service providers
+├── config/              # Configuration files
+├── database/
+│   ├── migrations/      # Database migrations
+│   └── seeds/          # Database seeders
+├── public/             # Public web root
+│   └── index.php       # Application entry point
+├── routes/             # Route definitions
+│   └── web.php         # Web routes
+├── resources/
+│   └── views/          # View templates
+├── storage/
+│   ├── cache/          # Application cache
+│   └── logs/           # Log files
+├── vendor/             # Composer dependencies
+├── .env                # Environment configuration
+├── aeros               # CLI tool
+└── composer.json       # Composer dependencies
+```
+
+## Web server configuration
+
+### Apache
+
+Aeros includes a `public/.htaccess` file for Apache. Make sure `mod_rewrite` is enabled:
+
+```bash
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+```
+
+Point your Apache virtual host to the `public` directory:
+
+```apache
+<VirtualHost *:80>
+    DocumentRoot "/path/to/my-app/public"
+    <Directory "/path/to/my-app/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+```
+
+### Nginx
+
+For Nginx, use this configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    root /path/to/my-app/public;
+
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+```
+
+<Warning>
+  Always point your web server to the `public` directory, not the project root. This keeps sensitive files outside the web-accessible directory.
+</Warning>
+
+## Verify installation
+
+To verify that Aeros is installed correctly, run:
+
+```bash
+php aeros --version
+```
+
+You should see the Aeros version information.
+
+## Optional dependencies
+
+Aeros comes with several optional integrations that you can configure:
+
+- **Redis** - For caching and session storage (requires `predis/predis`)
+- **SendGrid** - For email delivery (requires `sendgrid/sendgrid`)
+- **Twilio** - For SMS messaging (requires `twilio/sdk`)
+- **Sentry** - For error tracking (requires `sentry/sdk`)
+- **JWT** - For API authentication (requires `firebase/php-jwt`)
+
+These are already included in the framework dependencies, but you'll need to configure them in your `.env` file.
+
+## Troubleshooting
+
+### Permission errors
+
+If you encounter permission errors, make sure the `storage` and `cache` directories are writable:
+
+```bash
+chmod -R 775 storage
+chmod -R 775 bootstrap/cache
+```
+
+### Composer memory limit
+
+If Composer runs out of memory during installation:
+
+```bash
+COMPOSER_MEMORY_LIMIT=-1 composer install
+```
+
+### PHP version mismatch
+
+Make sure you're using PHP 8.2 or higher:
+
+```bash
+php -v
+```
+
+If you have multiple PHP versions installed, you may need to specify the path:
+
+```bash
+/usr/bin/php8.2 -v
+```
+
+## Next steps
+
+Now that you have Aeros installed, you're ready to build your first application!
+
+<Card title="Quickstart tutorial" icon="rocket" href="/quickstart">
+  Follow our quickstart guide to build a simple web application with Aeros
+</Card>

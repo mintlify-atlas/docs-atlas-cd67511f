@@ -1,0 +1,177 @@
+---
+title: "Route Parameters"
+description: "Capture dynamic values from URLs using route parameters"
+---
+
+## Overview
+
+Route parameters allow you to capture dynamic segments from the URL and pass them to your route handlers. Parameters are automatically parsed and made available to your controllers.
+
+## Defining Route Parameters
+
+### Curly Brace Syntax
+
+Define parameters using curly braces `{}` in your route path:
+
+```php
+Route::get('/users/{id}', 'UserController@show');
+Route::get('/posts/{slug}', 'PostController@show');
+Route::get('/categories/{category}/posts/{post}', 'PostController@show');
+```
+
+### Colon Syntax
+
+Internally, Aeros converts curly brace syntax to colon syntax. You can also use colons directly:
+
+```php
+Route::get('/users/:id', 'UserController@show');
+```
+
+<Note>
+Both syntaxes work identically. The router automatically converts `{param}` to `:param` during route parsing.
+</Note>
+
+## Accessing Parameters in Controllers
+
+Route parameters are automatically injected into controller methods based on parameter names:
+
+```php
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class UserController extends Controller
+{
+    public function show($id)
+    {
+        // $id contains the value from the URL
+        $user = User::find($id);
+        return view('users.show', ['user' => $user]);
+    }
+}
+```
+
+### Multiple Parameters
+
+When using multiple parameters, they are passed to the controller method in the order they appear in the route:
+
+```php
+// Route definition
+Route::get('/users/{userId}/posts/{postId}', 'PostController@show');
+
+// Controller method
+public function show($userId, $postId)
+{
+    $user = User::find($userId);
+    $post = Post::find($postId);
+    
+    return view('posts.show', [
+        'user' => $user,
+        'post' => $post
+    ]);
+}
+```
+
+<Warning>
+Parameter names in the controller method must match the parameter names in the route definition. The router uses reflection to map route parameters to controller method arguments.
+</Warning>
+
+## Accessing Parameters in Closures
+
+While controller methods receive parameters automatically, closures can access the current route's parameters through the router:
+
+```php
+Route::get('/users/{id}', function() {
+    $route = app()->router->getRoute();
+    $userId = $route->params['id'];
+    
+    return "User ID: {$userId}";
+});
+```
+
+## How Parameter Parsing Works
+
+The router uses a sophisticated matching algorithm to extract parameters:
+
+1. The route path is split into parts (tokens)
+2. Each parameter position is tracked using the `:` prefix
+3. During matching, the router compares URL parts with route parts
+4. Non-parameter parts must match exactly
+5. Parameter positions capture the corresponding URL segment
+
+### Example Matching Process
+
+For the route `/users/{userId}/posts/{postId}`:
+
+```php
+// Registered route: /users/:userId/posts/:postId
+// Incoming URL:     /users/123/posts/456
+
+// Router extracts:
+$params = [
+    'userId' => '123',
+    'postId' => '456'
+];
+```
+
+## Subdomain Parameters
+
+Aeros also supports subdomain routing with parameters:
+
+```php
+// Route for: admin.yourdomain.com/dashboard
+Route::get(':/dashboard', 'Admin\DashboardController@index');
+
+// The subdomain is automatically captured
+```
+
+Use the `@` symbol to explicitly define subdomain routes:
+
+```php
+// Route path: 'admin@/users/{id}'
+Route::get('admin@/users/{id}', 'Admin\UserController@show');
+```
+
+<Tip>
+Subdomains are automatically detected when your domain has multiple levels (e.g., `admin.yourdomain.com`). The router stores the subdomain separately from the URI parameters.
+</Tip>
+
+## Parameter Constraints
+
+Currently, Aeros extracts all parameter values as strings. You should validate and cast parameter values in your controller:
+
+```php
+public function show($id)
+{
+    // Validate that $id is numeric
+    if (!is_numeric($id)) {
+        throw new \Exception('Invalid ID');
+    }
+    
+    $userId = (int) $id;
+    $user = User::find($userId);
+    
+    return view('users.show', ['user' => $user]);
+}
+```
+
+## URI Part Matching
+
+The router enforces strict URI part count matching:
+
+- `/users/{id}` matches `/users/123`
+- `/users/{id}` does NOT match `/users/123/edit`
+- `/users/{id}` does NOT match `/users`
+
+This ensures your routes are precise and predictable.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="shield" href="/routing/middleware">
+    Add middleware to validate and process route parameters
+  </Card>
+  <Card title="Route Groups" icon="layer-group" href="/routing/groups">
+    Organize routes with shared middleware and prefixes
+  </Card>
+</CardGroup>

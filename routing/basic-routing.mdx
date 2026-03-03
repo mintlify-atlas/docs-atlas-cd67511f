@@ -1,0 +1,141 @@
+---
+title: "Basic Routing"
+description: "Define routes using GET, POST, PUT, PATCH, and DELETE methods"
+---
+
+## Overview
+
+Aeros provides a simple and expressive routing system. Routes are typically defined in the `routes/web.php` file and support all standard HTTP methods.
+
+## Supported HTTP Methods
+
+The Router class supports the following HTTP methods:
+
+- `get` - Retrieve resources
+- `post` - Create new resources
+- `put` - Update/replace resources
+- `patch` - Partially update resources
+- `delete` - Remove resources
+
+## Basic Route Registration
+
+Routes are registered using static method calls on the `Route` class. Each method accepts a URI path and a handler (either a closure or a controller reference).
+
+### GET Routes
+
+Use GET routes to retrieve and display resources:
+
+```php
+Route::get('/', function() {
+    return view('welcome');
+});
+
+Route::get('/users', function() {
+    return view('users.index');
+});
+```
+
+### POST Routes
+
+Use POST routes to create new resources:
+
+```php
+Route::post('/users', function() {
+    // Create a new user
+    return response()->json(['status' => 'created']);
+});
+```
+
+### PUT Routes
+
+Use PUT routes to update or replace entire resources:
+
+```php
+Route::put('/users/{id}', function() {
+    // Update user
+    return response()->json(['status' => 'updated']);
+});
+```
+
+### PATCH Routes
+
+Use PATCH routes to partially update resources:
+
+```php
+Route::patch('/users/{id}', function() {
+    // Partially update user
+    return response()->json(['status' => 'patched']);
+});
+```
+
+### DELETE Routes
+
+Use DELETE routes to remove resources:
+
+```php
+Route::delete('/users/{id}', function() {
+    // Delete user
+    return response()->json(['status' => 'deleted']);
+});
+```
+
+## Route Handlers
+
+### Closure Handlers
+
+You can use anonymous functions (closures) as route handlers:
+
+```php
+Route::get('/hello', function() {
+    return 'Hello, World!';
+});
+```
+
+### Controller Handlers
+
+For better organization, you can reference controller methods using the `@` syntax:
+
+```php
+Route::get('/users', 'UserController@index');
+Route::post('/users', 'UserController@store');
+Route::put('/users/{id}', 'UserController@update');
+Route::delete('/users/{id}', 'UserController@destroy');
+```
+
+If no method is specified, the router defaults to the `index` method:
+
+```php
+// Calls UserController@index
+Route::get('/users', 'UserController');
+```
+
+<Note>
+Controller handlers are automatically resolved from the `\App\Controllers\` namespace and must extend `\Aeros\Src\Classes\Controller`.
+</Note>
+
+## Route Files
+
+By default, routes are loaded from `routes/web.php`. You can organize routes into separate files and load them conditionally:
+
+```php
+// routes/web.php - Default routes file
+Route::get('/', 'HomeController@index');
+
+// routes/admin.php - Admin routes
+Route::get('/dashboard', 'Admin\DashboardController@index');
+```
+
+<Tip>
+The router automatically loads route files based on the subdomain or URI prefix, allowing you to organize routes by feature or domain.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Route Parameters" icon="brackets-curly" href="/routing/route-parameters">
+    Learn how to capture dynamic segments in your routes
+  </Card>
+  <Card title="Middleware" icon="shield" href="/routing/middleware">
+    Add middleware to protect and process routes
+  </Card>
+</CardGroup>

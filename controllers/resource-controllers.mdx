@@ -1,0 +1,533 @@
+---
+title: "Resource Controllers"
+description: "Build RESTful resource controllers following standard CRUD conventions"
+icon: "arrows-rotate"
+---
+
+## Introduction
+
+Resource controllers follow RESTful conventions for handling CRUD (Create, Read, Update, Delete) operations. While Aeros doesn't have a dedicated resource controller generator, you can easily structure your controllers to follow REST principles.
+
+## RESTful Convention
+
+A resource controller typically handles seven standard actions for a given resource:
+
+| Method | URI | Action | Description |
+|--------|-----|--------|-------------|
+| GET | `/photos` | index | Display a list of all photos |
+| GET | `/photos/create` | create | Show form to create new photo |
+| POST | `/photos` | store | Store a new photo |
+| GET | `/photos/{id}` | show | Display a specific photo |
+| GET | `/photos/{id}/edit` | edit | Show form to edit a photo |
+| PUT/PATCH | `/photos/{id}` | update | Update a specific photo |
+| DELETE | `/photos/{id}` | destroy | Delete a specific photo |
+
+## Creating a Resource Controller
+
+Create a resource controller that follows REST conventions:
+
+```php PhotoController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Response;
+
+class PhotoController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $photos = db()->query('SELECT * FROM photos ORDER BY created_at DESC');
+        
+        return view('photos.index', ['photos' => $photos]);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return view('photos.create');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store()
+    {
+        $validated = validate([
+            'title' => 'required|string|max:255',
+            'description' => 'string',
+            'image' => 'required|image'
+        ]);
+        
+        // Handle file upload
+        $uploaded = store(request('files')['image'], '/uploads/photos');
+        
+        db()->insert('photos', [
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? '',
+            'path' => $uploaded[0]['path'],
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        return redirect('/photos');
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show($id)
+    {
+        $photo = db()->query('SELECT * FROM photos WHERE id = ?', [$id])[0] ?? null;
+        
+        if (!$photo) {
+            abort('Photo not found', 404);
+        }
+        
+        return view('photos.show', ['photo' => $photo]);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit($id)
+    {
+        $photo = db()->query('SELECT * FROM photos WHERE id = ?', [$id])[0] ?? null;
+        
+        if (!$photo) {
+            abort('Photo not found', 404);
+        }
+        
+        return view('photos.edit', ['photo' => $photo]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update($id)
+    {
+        $validated = validate([
+            'title' => 'required|string|max:255',
+            'description' => 'string'
+        ]);
+        
+        db()->update('photos', $validated, ['id' => $id]);
+        
+        return redirect('/photos/' . $id);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy($id)
+    {
+        $photo = db()->query('SELECT * FROM photos WHERE id = ?', [$id])[0] ?? null;
+        
+        if ($photo && file_exists($photo['path'])) {
+            unlink($photo['path']);
+        }
+        
+        db()->delete('photos', ['id' => $id]);
+        
+        return redirect('/photos');
+    }
+}
+```
+
+## Defining Resource Routes
+
+Set up routes that map to your resource controller methods:
+
+```php routes/web.php
+use Aeros\Src\Classes\Router;
+
+// Display all photos
+Router::get('/photos', 'PhotoController@index');
+
+// Show create form
+Router::get('/photos/create', 'PhotoController@create');
+
+// Store new photo
+Router::post('/photos', 'PhotoController@store');
+
+// Show specific photo
+Router::get('/photos/{id}', 'PhotoController@show');
+
+// Show edit form
+Router::get('/photos/{id}/edit', 'PhotoController@edit');
+
+// Update photo
+Router::put('/photos/{id}', 'PhotoController@update');
+// Alternative: Router::patch('/photos/{id}', 'PhotoController@update');
+
+// Delete photo
+Router::delete('/photos/{id}', 'PhotoController@destroy');
+```
+
+<Warning>
+Make sure to define the `/photos/create` route **before** `/photos/{id}` to prevent "create" from being interpreted as an ID parameter.
+</Warning>
+
+## API Resource Controllers
+
+For API endpoints, you typically skip the `create` and `edit` methods (which return forms) and return JSON responses:
+
+```php api/ProductController.php
+<?php
+
+namespace App\Controllers\Api;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Response;
+
+class ProductController extends Controller
+{
+    public function index()
+    {
+        $products = db()->query('SELECT * FROM products');
+        
+        return response([
+            'success' => true,
+            'data' => $products
+        ], 200, Response::JSON);
+    }
+
+    public function store()
+    {
+        $validated = validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric',
+            'stock' => 'required|integer'
+        ]);
+        
+        $id = db()->insert('products', $validated);
+        
+        return response([
+            'success' => true,
+            'data' => ['id' => $id],
+            'message' => 'Product created successfully'
+        ], 201, Response::JSON);
+    }
+
+    public function show($id)
+    {
+        $product = db()->query('SELECT * FROM products WHERE id = ?', [$id])[0] ?? null;
+        
+        if (!$product) {
+            return response([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404, Response::JSON);
+        }
+        
+        return response([
+            'success' => true,
+            'data' => $product
+        ], 200, Response::JSON);
+    }
+
+    public function update($id)
+    {
+        $validated = validate([
+            'name' => 'string|max:255',
+            'price' => 'numeric',
+            'stock' => 'integer'
+        ]);
+        
+        $affected = db()->update('products', $validated, ['id' => $id]);
+        
+        if ($affected === 0) {
+            return response([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404, Response::JSON);
+        }
+        
+        return response([
+            'success' => true,
+            'message' => 'Product updated successfully'
+        ], 200, Response::JSON);
+    }
+
+    public function destroy($id)
+    {
+        $affected = db()->delete('products', ['id' => $id]);
+        
+        if ($affected === 0) {
+            return response([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404, Response::JSON);
+        }
+        
+        return response([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ], 200, Response::JSON);
+    }
+}
+```
+
+With API routes:
+
+```php routes/api.php
+use Aeros\Src\Classes\Router;
+
+Router::get('/api/products', 'Api\\ProductController@index');
+Router::post('/api/products', 'Api\\ProductController@store');
+Router::get('/api/products/{id}', 'Api\\ProductController@show');
+Router::put('/api/products/{id}', 'Api\\ProductController@update');
+Router::patch('/api/products/{id}', 'Api\\ProductController@update');
+Router::delete('/api/products/{id}', 'Api\\ProductController@destroy');
+```
+
+## Nested Resources
+
+Handle nested resources like posts and their comments:
+
+```php CommentController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class CommentController extends Controller
+{
+    public function index($postId)
+    {
+        $comments = db()->query(
+            'SELECT * FROM comments WHERE post_id = ? ORDER BY created_at DESC',
+            [$postId]
+        );
+        
+        return view('comments.index', [
+            'postId' => $postId,
+            'comments' => $comments
+        ]);
+    }
+
+    public function store($postId)
+    {
+        $validated = validate([
+            'content' => 'required|string',
+            'author' => 'required|string'
+        ]);
+        
+        db()->insert('comments', array_merge($validated, [
+            'post_id' => $postId,
+            'created_at' => date('Y-m-d H:i:s')
+        ]));
+        
+        return redirect('/posts/' . $postId);
+    }
+
+    public function destroy($postId, $commentId)
+    {
+        db()->delete('comments', [
+            'id' => $commentId,
+            'post_id' => $postId
+        ]);
+        
+        return redirect('/posts/' . $postId);
+    }
+}
+```
+
+With nested routes:
+
+```php routes/web.php
+Router::get('/posts/{postId}/comments', 'CommentController@index');
+Router::post('/posts/{postId}/comments', 'CommentController@store');
+Router::delete('/posts/{postId}/comments/{commentId}', 'CommentController@destroy');
+```
+
+## Partial Resource Controllers
+
+You don't always need all seven resource methods. Create controllers with only the methods you need:
+
+```php NotificationController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+
+class NotificationController extends Controller
+{
+    // Only index and destroy - no create/edit
+    
+    public function index()
+    {
+        $notifications = db()->query(
+            'SELECT * FROM notifications WHERE user_id = ?',
+            [session()->get('user_id')]
+        );
+        
+        return view('notifications.index', ['notifications' => $notifications]);
+    }
+
+    public function destroy($id)
+    {
+        db()->delete('notifications', [
+            'id' => $id,
+            'user_id' => session()->get('user_id')
+        ]);
+        
+        return redirect('/notifications');
+    }
+}
+```
+
+## Resource Controller with Middleware
+
+Protect resource routes with middleware:
+
+```php routes/web.php
+use Aeros\Src\Classes\Router;
+
+Router::group('auth', function() {
+    // All these routes require authentication
+    Router::get('/posts', 'PostController@index');
+    Router::get('/posts/create', 'PostController@create');
+    Router::post('/posts', 'PostController@store');
+    Router::get('/posts/{id}/edit', 'PostController@edit');
+    Router::put('/posts/{id}', 'PostController@update');
+    Router::delete('/posts/{id}', 'PostController@destroy');
+});
+
+// Public route - no auth required
+Router::get('/posts/{id}', 'PostController@show');
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Follow REST conventions consistently">
+    Stick to standard method names (`index`, `show`, `store`, `update`, `destroy`) to make your code predictable and maintainable.
+  </Accordion>
+  
+  <Accordion title="Return appropriate HTTP status codes">
+    - 200: Success
+    - 201: Created
+    - 204: No Content (for successful deletes)
+    - 404: Not Found
+    - 422: Validation Error
+  </Accordion>
+  
+  <Accordion title="Validate all input">
+    Always validate data in `store` and `update` methods before persisting to the database.
+  </Accordion>
+  
+  <Accordion title="Use soft deletes for important data">
+    Instead of permanently deleting records, consider marking them as deleted with a `deleted_at` timestamp.
+  </Accordion>
+  
+  <Accordion title="Keep API responses consistent">
+    Maintain a consistent JSON structure across all API endpoints:
+    ```json
+    {
+      "success": true,
+      "data": {},
+      "message": "Operation successful"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Example: Complete E-commerce Resource
+
+Here's a complete example showing a product resource with image uploads, stock management, and JSON responses:
+
+```php ProductController.php
+<?php
+
+namespace App\Controllers;
+
+use Aeros\Src\Classes\Controller;
+use Aeros\Src\Classes\Response;
+
+class ProductController extends Controller
+{
+    public function index()
+    {
+        $page = request('get', ['page']) ?? 1;
+        $perPage = 20;
+        $offset = ($page - 1) * $perPage;
+        
+        $products = db()->query(
+            'SELECT * FROM products WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            [$perPage, $offset]
+        );
+        
+        return view('products.index', ['products' => $products, 'page' => $page]);
+    }
+
+    public function store()
+    {
+        $validated = validate([
+            'name' => 'required|string|max:255',
+            'description' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'category_id' => 'required|integer'
+        ]);
+        
+        // Handle image upload if present
+        if (isset(request('files')['image'])) {
+            $uploaded = store(request('files')['image'], '/uploads/products');
+            $validated['image_path'] = $uploaded[0]['path'];
+        }
+        
+        $validated['created_at'] = date('Y-m-d H:i:s');
+        $id = db()->insert('products', $validated);
+        
+        session()->set('success', 'Product created successfully');
+        return redirect('/products/' . $id);
+    }
+
+    public function update($id)
+    {
+        $validated = validate([
+            'name' => 'string|max:255',
+            'description' => 'string',
+            'price' => 'numeric|min:0',
+            'stock' => 'integer|min:0'
+        ]);
+        
+        $validated['updated_at'] = date('Y-m-d H:i:s');
+        db()->update('products', $validated, ['id' => $id]);
+        
+        session()->set('success', 'Product updated successfully');
+        return redirect('/products/' . $id);
+    }
+
+    public function destroy($id)
+    {
+        // Soft delete
+        db()->update('products', [
+            'deleted_at' => date('Y-m-d H:i:s')
+        ], ['id' => $id]);
+        
+        session()->set('success', 'Product deleted successfully');
+        return redirect('/products');
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Controllers" icon="table-layout" href="/controllers/basic-controllers">
+    Learn the fundamentals of controller creation and usage.
+  </Card>
+  
+  <Card title="Dependency Injection" icon="syringe" href="/controllers/dependency-injection">
+    Discover how to inject dependencies into your controllers.
+  </Card>
+</CardGroup>

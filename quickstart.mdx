@@ -1,80 +1,287 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first application with Aeros in minutes
 ---
 
-## Get started in three steps
+<Info>
+  Make sure you've [installed Aeros](/installation) before starting this tutorial.
+</Info>
 
-Get your documentation site running locally and make your first customization.
+This quickstart guide will walk you through building a simple web application with Aeros. You'll learn the basics of routing, controllers, and responses.
 
-### Step 1: Set up your local environment
+## Hello World
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+Let's start with the simplest possible route. Create a file called `routes.php` in your application's root directory:
 
-### Step 2: Deploy your changes
+```php routes.php
+<?php
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+use Aeros\Src\Classes\Router;
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+Router::get('/', function() {
+    return 'Hello, World!';
+});
+```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Start the development server:
 
-### Step 3: Go live
+```bash
+php aeros run:app
+```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+Visit `http://localhost:8000` in your browser to see your "Hello, World!" message.
 
-## Next steps
+<Tip>
+The `Router` class supports all standard HTTP methods: `get()`, `post()`, `put()`, `patch()`, and `delete()`.
+</Tip>
 
-Now that you have your docs running, explore these key features:
+## Route Parameters
+
+Routes can capture dynamic segments from the URL. Aeros supports two syntaxes for route parameters:
+
+```php routes.php
+Router::get('/user/{id}', function($id) {
+    return "User ID: $id";
+});
+
+// Alternative syntax
+Router::get('/post/:slug', function($slug) {
+    return "Post slug: $slug";
+});
+```
+
+Parameters are automatically passed to your handler function in the order they appear in the route.
+
+## Creating a Controller
+
+<Steps>
+  <Step title="Generate a controller">
+    Use the CLI to create a new controller:
+
+    ```bash
+    php aeros make:controller UserController
+    ```
+
+    This creates a new file at `app/controllers/UserController.php`.
+  </Step>
+
+  <Step title="Define controller methods">
+    Open the generated controller and add methods:
+
+    ```php app/controllers/UserController.php
+    <?php
+
+    namespace App\Controllers;
+
+    use Aeros\Src\Classes\Controller;
+
+    class UserController extends Controller
+    {
+        public function index()
+        {
+            return response()->type([
+                'users' => [
+                    ['id' => 1, 'name' => 'John Doe'],
+                    ['id' => 2, 'name' => 'Jane Smith']
+                ]
+            ], 200, 'json');
+        }
+
+        public function show($id)
+        {
+            return response()->type([
+                'user' => [
+                    'id' => $id,
+                    'name' => 'John Doe',
+                    'email' => 'john@example.com'
+                ]
+            ], 200, 'json');
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Route to the controller">
+    Update your routes to use the controller:
+
+    ```php routes.php
+    Router::get('/users', 'UserController@index');
+    Router::get('/user/{id}', 'UserController@show');
+    ```
+
+    The `Controller@method` syntax tells Aeros which controller and method to call.
+  </Step>
+</Steps>
+
+## JSON API Response
+
+Aeros makes it easy to build JSON APIs. The `response()->type()` method handles content types automatically:
+
+```php routes.php
+Router::get('/api/status', function() {
+    return response()->type([
+        'status' => 'ok',
+        'timestamp' => time(),
+        'version' => '1.0.0'
+    ], 200, 'json');
+});
+```
+
+The second parameter is the HTTP status code, and the third is the content type (defaults to JSON).
+
+## Working with Views
+
+To render HTML views, use the `view()` helper function:
+
+```php routes.php
+Router::get('/welcome', function() {
+    return view('welcome', [
+        'title' => 'Welcome to Aeros',
+        'message' => 'The lighter MVC framework'
+    ]);
+});
+```
+
+Create a view file at `resources/views/welcome.php`:
+
+```php resources/views/welcome.php
+<!DOCTYPE html>
+<html>
+<head>
+    <title><?= $title ?></title>
+</head>
+<body>
+    <h1><?= $message ?></h1>
+    <p>You're ready to start building with Aeros!</p>
+</body>
+</html>
+```
+
+## Route Groups and Middleware
+
+Group related routes together and apply middleware:
+
+```php routes.php
+Router::group(['middleware' => ['auth']], function() {
+    Router::get('/dashboard', 'DashboardController@index');
+    Router::get('/profile', 'ProfileController@show');
+    Router::post('/profile', 'ProfileController@update');
+});
+```
+
+## Accessing Request Data
+
+Use the `request()` helper to access request data:
+
+```php routes.php
+Router::post('/contact', function() {
+    $name = request()->getPayload('name');
+    $email = request()->getPayload('email');
+    $message = request()->getPayload('message');
+
+    // Process the contact form...
+
+    return response()->type([
+        'success' => true,
+        'message' => 'Thank you for your message!'
+    ], 200, 'json');
+});
+```
+
+## Building a Simple Task List
+
+Let's put it all together with a simple task list API:
+
+<Steps>
+  <Step title="Create the controller">
+    ```bash
+    php aeros make:controller TaskController
+    ```
+  </Step>
+
+  <Step title="Implement CRUD operations">
+    ```php app/controllers/TaskController.php
+    <?php
+
+    namespace App\Controllers;
+
+    use Aeros\Src\Classes\Controller;
+
+    class TaskController extends Controller
+    {
+        private $tasks = [
+            ['id' => 1, 'title' => 'Learn Aeros', 'completed' => false],
+            ['id' => 2, 'title' => 'Build an app', 'completed' => false],
+        ];
+
+        public function index()
+        {
+            return response()->type(['tasks' => $this->tasks], 200, 'json');
+        }
+
+        public function store()
+        {
+            $title = request()->getPayload('title');
+            
+            $newTask = [
+                'id' => count($this->tasks) + 1,
+                'title' => $title,
+                'completed' => false
+            ];
+
+            return response()->type([
+                'task' => $newTask,
+                'message' => 'Task created successfully'
+            ], 201, 'json');
+        }
+
+        public function update($id)
+        {
+            $completed = request()->getPayload('completed');
+
+            return response()->type([
+                'task' => [
+                    'id' => $id,
+                    'completed' => $completed
+                ],
+                'message' => 'Task updated successfully'
+            ], 200, 'json');
+        }
+
+        public function destroy($id)
+        {
+            return response()->type([
+                'message' => 'Task deleted successfully'
+            ], 200, 'json');
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Define the routes">
+    ```php routes.php
+    // Task list API
+    Router::get('/tasks', 'TaskController@index');
+    Router::post('/tasks', 'TaskController@store');
+    Router::put('/tasks/{id}', 'TaskController@update');
+    Router::delete('/tasks/{id}', 'TaskController@destroy');
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Learn about routing" icon="route" href="/routing/basic-routing">
+    Explore advanced routing features like middleware and groups
+  </Card>
+  <Card title="Work with databases" icon="database" href="/database/configuration">
+    Connect to databases and use the built-in ORM
+  </Card>
+  <Card title="API reference" icon="code" href="/api/router">
+    Explore the complete API documentation
+  </Card>
+  <Card title="CLI commands" icon="terminal" href="/cli/overview">
+    Discover all available CLI commands
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

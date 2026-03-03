@@ -1,0 +1,275 @@
+---
+title: "Route Groups"
+description: "Organize routes and apply shared middleware using route groups"
+---
+
+## Overview
+
+Route groups allow you to apply middleware to multiple routes at once, reducing duplication and keeping your route definitions clean and organized.
+
+## Basic Usage
+
+Use the `Router::group()` method to create a route group:
+
+```php
+Router::group([\App\Middleware\AuthMiddleware::class], function() {
+    Route::get('/dashboard', 'DashboardController@index');
+    Route::get('/profile', 'UserController@profile');
+    Route::get('/settings', 'UserController@settings');
+});
+```
+
+All routes defined within the callback will automatically have the group's middleware applied.
+
+## Middleware Formats
+
+Route groups support two formats for specifying middleware:
+
+### Array Format
+
+Pass an array of fully-qualified middleware class names:
+
+```php
+Router::group([
+    \App\Middleware\AuthMiddleware::class,
+    \App\Middleware\VerifiedMiddleware::class,
+], function() {
+    Route::get('/admin/dashboard', 'Admin\DashboardController@index');
+    Route::get('/admin/users', 'Admin\UserController@index');
+});
+```
+
+### String Format (Named Middleware)
+
+Pass a comma-separated string of middleware aliases defined in your `config/app.php`:
+
+```php
+// config/app.php
+return [
+    'middlewares' => [
+        'auth' => [\App\Middleware\AuthMiddleware::class],
+        'admin' => [
+            \App\Middleware\AuthMiddleware::class,
+            \App\Middleware\AdminMiddleware::class,
+        ],
+        'api' => [\App\Middleware\ApiMiddleware::class],
+    ],
+];
+
+// routes/web.php
+Router::group('auth', function() {
+    Route::get('/dashboard', 'DashboardController@index');
+});
+
+// Multiple middleware groups
+Router::group('auth,admin', function() {
+    Route::get('/admin/users', 'Admin\UserController@index');
+});
+```
+
+<Tip>
+Using named middleware makes your route files more readable and allows you to change middleware implementations without updating every route group.
+</Tip>
+
+## How Groups Work
+
+When you define a route inside a group:
+
+1. The router sets the group middleware before executing the callback
+2. All routes registered in the callback receive the group middleware
+3. The group middleware is cleared after the callback completes
+
+```php
+// Step 1: Group middleware is set
+Router::group([\App\Middleware\AuthMiddleware::class], function() {
+    // Step 2: This route receives AuthMiddleware automatically
+    Route::get('/dashboard', 'DashboardController@index');
+});
+// Step 3: Group middleware is cleared
+
+// This route does NOT have AuthMiddleware
+Route::get('/login', 'AuthController@login');
+```
+
+## Combining Group and Route Middleware
+
+You can add additional middleware to individual routes within a group:
+
+```php
+Router::group('auth', function() {
+    // Only has auth middleware
+    Route::get('/dashboard', 'DashboardController@index');
+    
+    // Has auth + admin middleware
+    Route::get('/admin', 'AdminController@index')
+        ->withMiddleware(\App\Middleware\AdminMiddleware::class);
+    
+    // Has auth + verified + rate-limit middleware
+    Route::post('/api/data', 'ApiController@store')
+        ->withMiddleware([
+            \App\Middleware\VerifiedMiddleware::class,
+            \App\Middleware\RateLimitMiddleware::class,
+        ]);
+});
+```
+
+### Execution Order
+
+When combining group and route middleware, they execute in this order:
+
+1. Group middleware (in the order specified)
+2. Route-specific middleware (in the order specified)
+3. Route handler
+
+```php
+Router::group([
+    \App\Middleware\LogMiddleware::class,      // Executes 1st
+    \App\Middleware\AuthMiddleware::class,     // Executes 2nd
+], function() {
+    Route::get('/admin/users', 'Admin\UserController@index')
+        ->withMiddleware([
+            \App\Middleware\AdminMiddleware::class,    // Executes 3rd
+            \App\Middleware\AuditMiddleware::class,    // Executes 4th
+        ]);
+        // Route handler executes 5th
+});
+```
+
+## Nested Groups
+
+<Warning>
+Aeros does not currently support nested route groups. Each group is independent, and the middleware state is cleared after each group's callback completes.
+</Warning>
+
+Instead of nesting, combine middleware at the route level:
+
+```php
+// Instead of nested groups (not supported):
+// Router::group('auth', function() {
+//     Router::group('admin', function() {
+//         Route::get('/users', 'Admin\UserController@index');
+//     });
+// });
+
+// Do this:
+Router::group('auth,admin', function() {
+    Route::get('/users', 'Admin\UserController@index');
+});
+
+// Or this:
+Router::group('auth', function() {
+    Route::get('/users', 'Admin\UserController@index')
+        ->withMiddleware(config('app.middlewares.admin'));
+});
+```
+
+## Organizing Routes
+
+Route groups are perfect for organizing routes by feature or access level:
+
+### Public Routes
+
+```php
+// No middleware needed
+Route::get('/', 'HomeController@index');
+Route::get('/about', 'PageController@about');
+Route::get('/contact', 'PageController@contact');
+```
+
+### Authenticated Routes
+
+```php
+Router::group('auth', function() {
+    Route::get('/dashboard', 'DashboardController@index');
+    Route::get('/profile', 'UserController@profile');
+    Route::post('/profile', 'UserController@update');
+});
+```
+
+### Admin Routes
+
+```php
+Router::group('auth,admin', function() {
+    Route::get('/admin/dashboard', 'Admin\DashboardController@index');
+    Route::get('/admin/users', 'Admin\UserController@index');
+    Route::post('/admin/users', 'Admin\UserController@store');
+    Route::delete('/admin/users/{id}', 'Admin\UserController@destroy');
+});
+```
+
+### API Routes
+
+```php
+Router::group('api', function() {
+    Route::get('/api/users', 'Api\UserController@index');
+    Route::post('/api/users', 'Api\UserController@store');
+    Route::put('/api/users/{id}', 'Api\UserController@update');
+    Route::delete('/api/users/{id}', 'Api\UserController@destroy');
+});
+```
+
+## Middleware Configuration
+
+Define reusable middleware groups in `config/app.php`:
+
+```php
+return [
+    'middlewares' => [
+        // Web routes
+        'web' => [
+            \App\Middleware\SessionMiddleware::class,
+            \App\Middleware\CsrfMiddleware::class,
+        ],
+        
+        // API routes
+        'api' => [
+            \App\Middleware\ApiAuthMiddleware::class,
+            \App\Middleware\RateLimitMiddleware::class,
+            \App\Middleware\JsonResponseMiddleware::class,
+        ],
+        
+        // Authentication
+        'auth' => [
+            \App\Middleware\AuthMiddleware::class,
+        ],
+        
+        // Admin access
+        'admin' => [
+            \App\Middleware\AuthMiddleware::class,
+            \App\Middleware\AdminMiddleware::class,
+            \App\Middleware\AuditLogMiddleware::class,
+        ],
+    ],
+];
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Group by feature or access level">
+    Organize routes into logical groups based on who can access them (public, authenticated, admin) or what feature they belong to (user management, reporting, API).
+  </Accordion>
+  
+  <Accordion title="Use named middleware">
+    Define middleware groups in your config file and reference them by name. This makes routes more readable and middleware easier to maintain.
+  </Accordion>
+  
+  <Accordion title="Apply restrictive middleware first">
+    Put authentication and authorization middleware before logging or analytics middleware to avoid processing requests from unauthenticated users.
+  </Accordion>
+  
+  <Accordion title="Avoid duplicate middleware">
+    The router automatically prevents applying the same middleware class twice, but be mindful when combining named middleware groups that might overlap.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="shield" href="/routing/middleware">
+    Learn how to create custom middleware
+  </Card>
+  <Card title="Route Parameters" icon="brackets-curly" href="/routing/route-parameters">
+    Capture dynamic values from URLs
+  </Card>
+</CardGroup>

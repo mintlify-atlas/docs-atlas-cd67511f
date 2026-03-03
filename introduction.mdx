@@ -1,0 +1,98 @@
+---
+title: Introduction
+description: Aeros is the most lightweight MVC framework for PHP development, built with modern PHP 8.2+ features.
+---
+
+# Introduction to Aeros
+
+Aeros is a lightweight, modern MVC framework for PHP that provides a clean and elegant syntax for building web applications. Designed with simplicity and performance in mind, Aeros gives you the tools you need without unnecessary complexity.
+
+## Why Aeros?
+
+Aeros is built for developers who want a minimal yet powerful framework that doesn't get in the way. With modern PHP 8.2+ features, a simple routing system, and built-in support for common tasks, Aeros lets you focus on building your application.
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started with Aeros using Composer in just a few minutes
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first Aeros application with our step-by-step guide
+  </Card>
+  <Card title="Routing" icon="route" href="/routing/basic-routing">
+    Learn how to define routes and handle HTTP requests
+  </Card>
+  <Card title="Controllers" icon="code" href="/controllers/basic-controllers">
+    Organize your application logic with MVC controllers
+  </Card>
+</CardGroup>
+
+## Key features
+
+### Lightweight and fast
+
+Aeros is designed to be minimal and performant. It includes only what you need, making it perfect for both small projects and scalable applications.
+
+### Modern PHP
+
+Built on PHP 8.2+, Aeros leverages modern language features like typed properties, attributes, and match expressions for clean, type-safe code.
+
+### Powerful routing
+
+Define routes with ease using an intuitive fluent API. Support for route parameters, middleware, subdomains, and route groups out of the box.
+
+<CodeGroup>
+```php Basic routing
+Router::get('/', function() {
+    return view('welcome');
+});
+```
+
+```php Controller routing
+Router::get('/users/{id}', 'UserController@show');
+```
+
+```php Route middleware
+Router::group('auth', function() {
+    Router::get('/dashboard', 'DashboardController@index');
+    Router::post('/posts', 'PostController@store');
+});
+```
+</CodeGroup>
+
+### Built-in features
+
+Aeros comes with everything you need for modern web development:
+
+- **Request & Response** - Clean HTTP abstraction layer
+- **Middleware** - Filter and modify requests before they reach your controllers
+- **Database ORM** - Eloquent-style model relationships and query builder
+- **Authentication** - JWT-based authentication out of the box
+- **Queue System** - Background job processing with Beanstalkd
+- **Task Scheduling** - Cron-based task scheduler
+- **Email & SMS** - SendGrid and Twilio integration
+- **Caching** - Multiple cache backends including Redis
+- **CLI Commands** - Build custom artisan-style commands
+
+<Note>
+  Aeros follows the MVC (Model-View-Controller) pattern to keep your application organized and maintainable.
+</Note>
+
+## Framework architecture
+
+Aeros follows a traditional MVC architecture with a few modern improvements:
+
+- **Service Container** - Dependency injection container for managing class dependencies
+- **Service Providers** - Bootstrap application services and register bindings
+- **Middleware Pipeline** - Process requests through a series of middleware layers
+- **Event System** - Decouple your application logic with observable events
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Install Aeros" icon="download" href="/installation">
+    Follow our installation guide to set up your development environment
+  </Card>
+  <Card title="Build your first app" icon="rocket" href="/quickstart">
+    Create a simple web application in under 5 minutes
+  </Card>
+</CardGroup>

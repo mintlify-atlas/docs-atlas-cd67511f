@@ -1,0 +1,303 @@
+---
+title: Make Commands
+description: Scaffolding commands for generating Aeros application components
+---
+
+Make commands help you quickly scaffold various components of your Aeros application. All generated files use templates from the framework and follow Aeros conventions.
+
+## make:controller
+
+Creates a new controller class in the `app/controllers/` directory.
+
+```bash
+php aeros make:controller UserController
+```
+
+**Arguments:**
+- `name` (required) - The controller name ("Controller" suffix is optional)
+
+**Example:**
+```bash
+php aeros make:controller User
+# Creates: app/controllers/UserController.php
+```
+
+<Info>
+The command automatically adds the "Controller" suffix if not provided, so `User` and `UserController` produce the same result.
+</Info>
+
+## make:model
+
+Creates one or more model classes in the `app/Models/` directory.
+
+```bash
+php aeros make:model User Post Comment
+```
+
+**Arguments:**
+- `name` (required, array) - One or more model names
+
+**Example:**
+```bash
+php aeros make:model User
+# Creates: app/Models/User.php
+
+php aeros make:model Product Order
+# Creates: app/Models/Product.php and app/Models/Order.php
+```
+
+<Tip>
+You can create multiple models with a single command by providing multiple names separated by spaces.
+</Tip>
+
+## make:migration
+
+Creates a new database migration file using Phinx.
+
+```bash
+php aeros make:migration CreateUsersTable
+```
+
+**Arguments:**
+- `migration` (required, array) - One or more migration names
+
+**Options:**
+- `--seeder=<name>` - Also create a seeder file (can be used multiple times)
+
+**Examples:**
+```bash
+php aeros make:migration CreateUsersTable
+# Creates a timestamped migration in app/Database/migrations/
+
+php aeros make:migration CreatePostsTable --seeder=PostSeeder
+# Creates both a migration and a seeder
+
+php aeros make:migration CreateUsersTable CreatePostsTable
+# Creates multiple migrations
+```
+
+<Warning>
+Migration files are created with a 1-second delay between each to ensure unique timestamps.
+</Warning>
+
+## make:seed
+
+Creates a new database seeder class using Phinx.
+
+```bash
+php aeros make:seed UserSeeder
+```
+
+**Arguments:**
+- `seeder` (required, array) - One or more seeder names
+
+**Example:**
+```bash
+php aeros make:seed UserSeeder ProductSeeder
+# Creates: app/Database/seeds/UserSeeder.php
+# Creates: app/Database/seeds/ProductSeeder.php
+```
+
+## make:middleware
+
+Creates a new middleware class in the `app/middlewares/` directory.
+
+```bash
+php aeros make:middleware AuthMiddleware
+```
+
+**Arguments:**
+- `name` (required) - The middleware name
+
+**Example:**
+```bash
+php aeros make:middleware Auth
+# Creates: app/middlewares/AuthMiddleware.php
+```
+
+<Info>
+The "Middleware" suffix is automatically added if not provided.
+</Info>
+
+## make:job
+
+Creates a new queue job class in the `app/queues/jobs/` directory.
+
+```bash
+php aeros make:job SendEmailJob
+```
+
+**Arguments:**
+- `name` (required) - The job name
+
+**Example:**
+```bash
+php aeros make:job SendEmail
+# Creates: app/queues/jobs/SendEmailJob.php
+```
+
+## make:event
+
+Creates a new event class in the `app/events/` directory.
+
+```bash
+php aeros make:event UserRegisteredEvent
+```
+
+**Arguments:**
+- `name` (required) - The event name
+
+**Example:**
+```bash
+php aeros make:event UserRegistered
+# Creates: app/events/UserRegisteredEvent.php
+```
+
+## make:cron
+
+Creates a new cron job class in the `app/queues/crons/` directory.
+
+```bash
+php aeros make:cron DailyReportCron
+```
+
+**Arguments:**
+- `name` (required) - The cron job name
+
+**Example:**
+```bash
+php aeros make:cron DailyReport
+# Creates: app/queues/crons/DailyReportCron.php
+```
+
+<Info>
+Cron jobs created with this command need to be scheduled. They run when the `scheduler` command is executed.
+</Info>
+
+## make:provider
+
+Creates a new service provider in the `app/providers/` directory.
+
+```bash
+php aeros make:provider CreateAppDatabase
+```
+
+**Arguments:**
+- `name` (required) - The provider name
+
+**Example:**
+```bash
+php aeros make:provider AppDatabase
+# Creates: app/providers/AppDatabaseServiceProvider.php
+```
+
+<Info>
+Service providers are used to bootstrap services and configure the application container.
+</Info>
+
+## make:worker
+
+Creates a new worker class with optional supporting files (script, config, and log files).
+
+```bash
+php aeros make:worker EmailWorker
+```
+
+**Arguments:**
+- `name` (required) - The worker name
+
+**Options:**
+- `-p, --processes=<num>` - Number of processes (default: 3)
+- `-l, --log` - Create a log file for the worker
+- `-c, --config` - Create a supervisor config file
+- `-s, --script` - Create a worker script file
+- `-a, --all` - Create all supporting files (script, config, and log)
+
+**Examples:**
+```bash
+php aeros make:worker Email
+# Creates: app/queues/workers/EmailWorker.php
+
+php aeros make:worker Email --all
+# Creates:
+# - app/queues/workers/EmailWorker.php
+# - scripts/email-worker-script.php
+# - supervisor/conf.d/email-worker-script.conf
+# - logs/email-worker-script.log
+
+php aeros make:worker Email --processes=5 --config
+# Creates worker class and config with 5 processes
+```
+
+<Tip>
+Use the `--all` option when creating a production worker to generate all necessary files at once.
+</Tip>
+
+## make:command
+
+Creates a new custom CLI command in the `app/commands/` directory.
+
+```bash
+php aeros make:command SendEmails
+```
+
+**Arguments:**
+- `name` (required) - The command name
+
+**Example:**
+```bash
+php aeros make:command SendEmails
+# Creates: app/commands/SendEmailsCommand.php
+# Command name: send:emails
+```
+
+<Info>
+The command name is automatically converted from PascalCase to colon-separated format. For example, `SendEmails` becomes `send:emails`.
+</Info>
+
+## Naming Conventions
+
+All make commands follow these conventions:
+
+<AccordionGroup>
+  <Accordion title="Automatic Suffixes">
+    Many commands automatically append appropriate suffixes:
+    - Controllers: `Controller`
+    - Middleware: `Middleware`
+    - Jobs: `Job`
+    - Events: `Event`
+    - Crons: `Cron`
+    - Workers: `Worker`
+    - Providers: `ServiceProvider`
+  </Accordion>
+  
+  <Accordion title="Case Formatting">
+    - Class names are converted to PascalCase
+    - Existing suffixes are removed before appending the correct one
+    - Worker script and config files use kebab-case
+  </Accordion>
+  
+  <Accordion title="Directory Structure">
+    Generated files are placed in conventional directories:
+    - Controllers → `app/controllers/`
+    - Models → `app/Models/`
+    - Middleware → `app/middlewares/`
+    - Events → `app/events/`
+    - Jobs → `app/queues/jobs/`
+    - Crons → `app/queues/crons/`
+    - Workers → Environment variable `WORKERS_DIR`
+    - Commands → `app/commands/`
+    - Providers → `app/providers/`
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Commands" icon="database" href="/cli/database-commands">
+    Run migrations and seed your database
+  </Card>
+  <Card title="Cache Commands" icon="memory" href="/cli/cache-commands">
+    Manage application cache
+  </Card>
+</CardGroup>

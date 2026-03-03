@@ -1,0 +1,508 @@
+---
+title: 'Task Scheduling'
+description: 'Schedule recurring tasks with cron jobs in Aeros'
+---
+
+## Overview
+
+Aeros provides a cron job scheduling system built on [peppeocchi/php-cron-scheduler](https://packagist.org/packages/peppeocchi/php-cron-scheduler). The scheduler allows you to run periodic tasks at specified intervals using a simple, expressive API.
+
+## Key Concepts
+
+<CardGroup cols={2}>
+  <Card title="Synchronous Execution" icon="clock">
+    Cron jobs run synchronously on a schedule, not on-demand like queue jobs.
+  </Card>
+  
+  <Card title="Timer-Based" icon="timer">
+    Jobs execute at specific times or intervals rather than being triggered by events.
+  </Card>
+  
+  <Card title="Single Instance" icon="circle-1">
+    Only one instance of a cron job runs at a time to prevent conflicts.
+  </Card>
+  
+  <Card title="Periodic Execution" icon="arrows-rotate">
+    Jobs run repeatedly on a schedule until stopped.
+  </Card>
+</CardGroup>
+
+## Creating Cron Jobs
+
+All cron jobs must extend the `Cron` abstract class and implement two methods:
+
+```php app/Crons/DatabaseBackupCron.php
+use Aeros\Src\Classes\Cron;
+
+class DatabaseBackupCron extends Cron
+{
+    protected string $id = 'database-backup';
+    
+    /**
+     * Register the cron job with the scheduler.
+     */
+    public function run()
+    {
+        app()->scheduler->call(function() {
+            $this->work();
+        })->daily()->at('02:00');
+    }
+    
+    /**
+     * The actual work to be performed.
+     */
+    public function work()
+    {
+        logger()->log('Starting database backup...');
+        
+        // Backup logic
+        $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+        exec("mysqldump -u user -p password database > /backups/{$filename}");
+        
+        logger()->log("Database backup completed: {$filename}");
+    }
+}
+```
+
+<Warning>
+The `$id` property is required and must be unique for each cron job. An exception will be thrown if it's not defined.
+</Warning>
+
+## Required Properties and Methods
+
+### Protected Properties
+
+```php
+protected string $id; // Unique identifier (required)
+```
+
+### Required Methods
+
+```php
+/**
+ * Register the cron with the scheduler.
+ * Define the schedule and call $this->work().
+ */
+abstract public function run();
+
+/**
+ * The actual work to be performed.
+ * Contains your cron logic.
+ */
+abstract public function work();
+```
+
+## Schedule Expressions
+
+The scheduler supports various timing expressions:
+
+### Common Schedules
+
+```php
+// Every minute
+app()->scheduler->call(fn() => $this->work())->everyMinute();
+
+// Every 5 minutes
+app()->scheduler->call(fn() => $this->work())->everyFiveMinutes();
+
+// Every 10 minutes
+app()->scheduler->call(fn() => $this->work())->everyTenMinutes();
+
+// Every 30 minutes
+app()->scheduler->call(fn() => $this->work())->everyThirtyMinutes();
+
+// Hourly
+app()->scheduler->call(fn() => $this->work())->hourly();
+
+// Hourly at specific minute
+app()->scheduler->call(fn() => $this->work())->hourlyAt(15); // XX:15
+
+// Daily
+app()->scheduler->call(fn() => $this->work())->daily();
+
+// Daily at specific time
+app()->scheduler->call(fn() => $this->work())->dailyAt('13:00');
+
+// Weekly
+app()->scheduler->call(fn() => $this->work())->weekly();
+
+// Monthly
+app()->scheduler->call(fn() => $this->work())->monthly();
+```
+
+### Day-Specific Schedules
+
+```php
+// Monday through Friday at 9 AM
+app()->scheduler->call(fn() => $this->work())
+    ->weekdays()
+    ->at('09:00');
+
+// Weekends only
+app()->scheduler->call(fn() => $this->work())
+    ->weekends()
+    ->at('10:00');
+
+// Specific day of week
+app()->scheduler->call(fn() => $this->work())
+    ->monday()
+    ->at('08:00');
+
+app()->scheduler->call(fn() => $this->work())
+    ->friday()
+    ->at('17:00');
+```
+
+### Custom Cron Expressions
+
+```php
+// Using cron syntax: minute hour day month weekday
+app()->scheduler->call(fn() => $this->work())
+    ->cron('*/15 * * * *'); // Every 15 minutes
+
+app()->scheduler->call(fn() => $this->work())
+    ->cron('0 2 * * 0'); // Sundays at 2 AM
+```
+
+## Practical Examples
+
+### Example 1: Cache Cleanup
+
+```php app/Crons/CacheCleanupCron.php
+class CacheCleanupCron extends Cron
+{
+    protected string $id = 'cache-cleanup';
+    
+    public function run()
+    {
+        // Run every hour
+        app()->scheduler->call(function() {
+            $this->work();
+        })->hourly();
+    }
+    
+    public function work()
+    {
+        logger()->log('Starting cache cleanup...');
+        
+        // Clear expired sessions
+        $keys = cache('redis')->keys('session:*');
+        $cleared = 0;
+        
+        foreach ($keys as $key) {
+            $ttl = cache('redis')->ttl($key);
+            if ($ttl === -1) { // No expiration set
+                cache('redis')->del($key);
+                $cleared++;
+            }
+        }
+        
+        logger()->log("Cache cleanup completed. Removed {$cleared} keys.");
+    }
+}
+```
+
+### Example 2: Report Generation
+
+```php app/Crons/DailyReportCron.php
+class DailyReportCron extends Cron
+{
+    protected string $id = 'daily-report';
+    
+    public function run()
+    {
+        // Run daily at 8 AM
+        app()->scheduler->call(function() {
+            $this->work();
+        })->dailyAt('08:00');
+    }
+    
+    public function work()
+    {
+        logger()->log('Generating daily report...');
+        
+        // Get yesterday's data
+        $yesterday = date('Y-m-d', strtotime('-1 day'));
+        $stats = db()->query(
+            'SELECT COUNT(*) as total, SUM(amount) as revenue FROM orders WHERE DATE(created_at) = ?',
+            [$yesterday]
+        );
+        
+        // Generate report
+        $report = "Daily Report for {$yesterday}\n";
+        $report .= "Orders: {$stats['total']}\n";
+        $report .= "Revenue: \${$stats['revenue']}\n";
+        
+        // Send via email
+        queue()->push(new SendEmailJob(
+            'admin@example.com',
+            "Daily Report - {$yesterday}",
+            $report
+        ));
+        
+        logger()->log('Daily report generated and queued for delivery.');
+    }
+}
+```
+
+### Example 3: Database Maintenance
+
+```php app/Crons/DatabaseMaintenanceCron.php
+class DatabaseMaintenanceCron extends Cron
+{
+    protected string $id = 'database-maintenance';
+    
+    public function run()
+    {
+        // Run every Sunday at 3 AM
+        app()->scheduler->call(function() {
+            $this->work();
+        })->weekly()->sunday()->at('03:00');
+    }
+    
+    public function work()
+    {
+        logger()->log('Starting database maintenance...');
+        
+        // Optimize tables
+        $tables = db()->query('SHOW TABLES');
+        foreach ($tables as $table) {
+            $tableName = array_values($table)[0];
+            db()->query("OPTIMIZE TABLE {$tableName}");
+            logger()->log("Optimized table: {$tableName}");
+        }
+        
+        // Delete old logs (older than 30 days)
+        db()->query('DELETE FROM logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)');
+        
+        logger()->log('Database maintenance completed.');
+    }
+}
+```
+
+### Example 4: API Sync
+
+```php app/Crons/ApiSyncCron.php
+class ApiSyncCron extends Cron
+{
+    protected string $id = 'api-sync';
+    
+    public function run()
+    {
+        // Run every 15 minutes
+        app()->scheduler->call(function() {
+            $this->work();
+        })->cron('*/15 * * * *');
+    }
+    
+    public function work()
+    {
+        logger()->log('Starting API sync...');
+        
+        try {
+            // Fetch data from external API
+            $response = file_get_contents('https://api.example.com/data');
+            $data = json_decode($response, true);
+            
+            // Update local cache
+            cache('redis')->set('external_data', json_encode($data), 'ex', 900); // 15 min
+            
+            logger()->log("API sync completed. Synced {count($data)} records.");
+            
+        } catch (\Exception $e) {
+            logger()->log("API sync failed: {$e->getMessage()}");
+        }
+    }
+}
+```
+
+## Registering Cron Jobs
+
+Register your cron jobs during application bootstrap:
+
+```php bootstrap.php
+// Initialize scheduler
+app()->scheduler = new \GO\Scheduler();
+
+// Register cron jobs
+$crons = [
+    new DatabaseBackupCron(),
+    new CacheCleanupCron(),
+    new DailyReportCron(),
+    new DatabaseMaintenanceCron(),
+    new ApiSyncCron(),
+];
+
+foreach ($crons as $cron) {
+    $cron->run();
+}
+```
+
+## Running the Scheduler
+
+Create a command to run the scheduler:
+
+```php commands/run-cron.php
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../bootstrap.php';
+
+// Run all pending jobs
+app()->scheduler->run();
+```
+
+Add to your system crontab to run every minute:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line
+* * * * * cd /path/to/project && php commands/run-cron.php >> /dev/null 2>&1
+```
+
+<Info>
+The system cron runs every minute, but individual jobs execute based on their defined schedules.
+</Info>
+
+## Manual Execution
+
+You can manually execute a cron job using the `work()` method:
+
+```php
+// Create instance
+$backup = new DatabaseBackupCron();
+
+// Run immediately
+$backup->work();
+```
+
+This is useful for:
+- Testing cron jobs during development
+- Triggering jobs on-demand from admin panels
+- Running jobs via CLI commands
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Unique IDs" icon="fingerprint">
+    Always use unique, descriptive IDs for cron jobs to prevent conflicts.
+  </Card>
+  
+  <Card title="Logging" icon="file-lines">
+    Log the start and completion of cron jobs for monitoring and debugging.
+  </Card>
+  
+  <Card title="Error Handling" icon="shield">
+    Wrap cron logic in try-catch blocks to prevent failures from stopping the scheduler.
+  </Card>
+  
+  <Card title="Idempotency" icon="rotate">
+    Design cron jobs to be idempotent so running them multiple times doesn't cause issues.
+  </Card>
+  
+  <Card title="Lightweight Tasks" icon="feather">
+    Keep cron jobs fast. For heavy operations, queue jobs instead.
+  </Card>
+  
+  <Card title="Time Zones" icon="globe">
+    Be aware of server timezone when scheduling jobs.
+  </Card>
+</CardGroup>
+
+## Error Handling Example
+
+```php
+class RobustCron extends Cron
+{
+    protected string $id = 'robust-cron';
+    
+    public function run()
+    {
+        app()->scheduler->call(function() {
+            $this->work();
+        })->hourly();
+    }
+    
+    public function work()
+    {
+        try {
+            logger()->log("[{$this->id}] Starting...");
+            
+            // Your cron logic here
+            $this->performTask();
+            
+            logger()->log("[{$this->id}] Completed successfully.");
+            
+        } catch (\Exception $e) {
+            logger()->log("[{$this->id}] Error: {$e->getMessage()}");
+            
+            // Optionally notify admin
+            queue()->push(new SendAlertJob(
+                'admin@example.com',
+                "Cron Job Failed: {$this->id}",
+                $e->getMessage()
+            ));
+        }
+    }
+    
+    private function performTask()
+    {
+        // Task implementation
+    }
+}
+```
+
+## Cron vs Queue
+
+<Tabs>
+  <Tab title="Use Cron When">
+    - Tasks need to run at specific times
+    - Periodic maintenance or cleanup operations
+    - Scheduled reports or notifications
+    - Time-based data synchronization
+    - Recurring batch processes
+  </Tab>
+  
+  <Tab title="Use Queue When">
+    - Tasks are triggered by user actions
+    - Work needs to be done asynchronously
+    - Processing time is unpredictable
+    - Tasks can be retried on failure
+    - Multiple workers should process in parallel
+  </Tab>
+</Tabs>
+
+## Common Patterns
+
+### Cron + Queue Pattern
+
+Use cron to schedule jobs, queue to process them:
+
+```php
+class EmailDigestCron extends Cron
+{
+    protected string $id = 'email-digest';
+    
+    public function run()
+    {
+        app()->scheduler->call(function() {
+            $this->work();
+        })->dailyAt('07:00');
+    }
+    
+    public function work()
+    {
+        // Get all users who want daily digests
+        $users = db()->query('SELECT * FROM users WHERE digest_frequency = "daily"');
+        
+        // Queue individual email jobs
+        foreach ($users as $user) {
+            queue()->push(new SendDigestEmailJob($user['id']));
+        }
+        
+        logger()->log("Queued {count($users)} digest emails.");
+    }
+}
+```

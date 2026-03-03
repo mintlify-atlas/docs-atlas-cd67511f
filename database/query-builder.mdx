@@ -1,0 +1,424 @@
+---
+title: Query Builder
+description: Build database queries with Aeros fluent query builder
+---
+
+## Overview
+
+The Aeros Query Builder provides a fluent, chainable interface for constructing SQL queries. It supports WHERE clauses, JOINs, ordering, grouping, and more.
+
+## Basic Usage
+
+### Starting a Query
+
+Use the `query()` method to start building a query:
+
+```php
+use App\Models\User;
+
+// Start query builder
+$users = User::query()
+    ->where('status', 'active')
+    ->get();
+```
+
+## WHERE Clauses
+
+### Simple WHERE
+
+```php
+// WHERE email = 'test@example.com'
+User::query()
+    ->where('email', 'test@example.com')
+    ->get();
+
+// WHERE age > 18
+User::query()
+    ->where('age', '>', 18)
+    ->get();
+```
+
+### Multiple Conditions
+
+```php
+// WHERE status = 'active' AND role = 'admin'
+User::query()
+    ->where('status', 'active')
+    ->where('role', 'admin')
+    ->get();
+```
+
+### OR WHERE
+
+```php
+// WHERE status = 'active' OR status = 'pending'
+User::query()
+    ->where('status', 'active')
+    ->orWhere('status', 'pending')
+    ->get();
+```
+
+### WHERE IN
+
+```php
+// WHERE status IN ('active', 'pending', 'verified')
+User::query()
+    ->whereIn('status', ['active', 'pending', 'verified'])
+    ->get();
+
+// WHERE status NOT IN ('banned', 'deleted')
+User::query()
+    ->whereNotIn('status', ['banned', 'deleted'])
+    ->get();
+```
+
+### NULL Checks
+
+```php
+// WHERE deleted_at IS NULL
+User::query()
+    ->whereNull('deleted_at')
+    ->get();
+
+// WHERE email IS NOT NULL
+User::query()
+    ->whereNotNull('email')
+    ->get();
+```
+
+### BETWEEN
+
+```php
+// WHERE age BETWEEN 18 AND 65
+User::query()
+    ->whereBetween('age', 18, 65)
+    ->get();
+```
+
+## Supported Operators
+
+The query builder supports the following comparison operators:
+
+- `=` - Equal to
+- `!=`, `<>` - Not equal to
+- `<` - Less than
+- `>` - Greater than
+- `<=` - Less than or equal to
+- `>=` - Greater than or equal to
+- `LIKE`, `NOT LIKE` - Pattern matching
+- `ILIKE` - Case-insensitive pattern matching (PostgreSQL)
+- `IN`, `NOT IN` - Value in list
+- `BETWEEN`, `NOT BETWEEN` - Value between range
+- `IS NULL`, `IS NOT NULL` - NULL checks
+- `EXISTS`, `NOT EXISTS` - Subquery exists
+
+## JOINs
+
+### Inner Join
+
+```php
+User::query()
+    ->join('posts', 'users.id', '=', 'posts.user_id')
+    ->get();
+```
+
+### Left Join
+
+```php
+User::query()
+    ->leftJoin('posts', 'users.id', '=', 'posts.user_id')
+    ->get();
+```
+
+### Right Join
+
+```php
+User::query()
+    ->rightJoin('posts', 'users.id', '=', 'posts.user_id')
+    ->get();
+```
+
+### Cross Join
+
+```php
+User::query()
+    ->crossJoin('roles')
+    ->get();
+```
+
+## Ordering & Grouping
+
+### ORDER BY
+
+```php
+// ORDER BY created_at DESC
+User::query()
+    ->orderBy('created_at', 'DESC')
+    ->get();
+
+// Multiple ORDER BY
+User::query()
+    ->orderBy('status', 'ASC')
+    ->orderBy('created_at', 'DESC')
+    ->get();
+```
+
+### GROUP BY
+
+```php
+// GROUP BY status
+User::query()
+    ->groupBy('status')
+    ->get();
+
+// Multiple columns
+User::query()
+    ->groupBy(['status', 'role'])
+    ->get();
+```
+
+### HAVING
+
+```php
+// GROUP BY status HAVING count > 10
+User::query()
+    ->groupBy('status')
+    ->having('count', '>', 10)
+    ->get();
+```
+
+## Limiting Results
+
+### LIMIT
+
+```php
+// Get first 10 users
+User::query()
+    ->limit(10)
+    ->get();
+
+// Alternative: take()
+User::query()
+    ->take(10)
+    ->get();
+```
+
+### OFFSET
+
+```php
+// Skip first 20, get next 10
+User::query()
+    ->offset(20)
+    ->limit(10)
+    ->get();
+
+// Alternative: skip()
+User::query()
+    ->skip(20)
+    ->take(10)
+    ->get();
+```
+
+## Selecting Columns
+
+### Specific Columns
+
+```php
+// SELECT id, name, email
+User::query()
+    ->select(['id', 'name', 'email'])
+    ->get();
+
+// String format
+User::query()
+    ->select('id, name, email')
+    ->get();
+```
+
+### All Columns (Default)
+
+```php
+// SELECT *
+User::query()->get();
+```
+
+## UNION Queries
+
+```php
+$activeUsers = User::query()
+    ->where('status', 'active')
+    ->union(function($query) {
+        return $query->where('role', 'admin');
+    })
+    ->get();
+
+// UNION ALL
+User::query()
+    ->where('status', 'active')
+    ->union('SELECT * FROM archived_users', true)
+    ->get();
+```
+
+## Retrieving Results
+
+### Get All Results
+
+```php
+$users = User::query()
+    ->where('status', 'active')
+    ->get();
+
+// Returns: array of User models
+```
+
+### Get First Result
+
+```php
+$user = User::query()
+    ->where('email', 'admin@example.com')
+    ->first();
+
+// Returns: User model or null
+```
+
+### Count Results
+
+```php
+$count = User::query()
+    ->where('status', 'active')
+    ->count();
+
+// Returns: integer
+```
+
+### Check Existence
+
+```php
+$exists = User::query()
+    ->where('email', 'test@example.com')
+    ->exists();
+
+// Returns: boolean
+```
+
+## Raw Queries
+
+### Execute Raw SQL
+
+```php
+$results = User::query()->raw(
+    'SELECT * FROM users WHERE created_at > ? AND status = ?',
+    ['2024-01-01', 'active']
+);
+```
+
+<Warning>
+  Always use parameter binding with raw queries to prevent SQL injection.
+</Warning>
+
+## Complex Examples
+
+### Pagination
+
+```php
+$page = 1;
+$perPage = 20;
+
+$users = User::query()
+    ->where('status', 'active')
+    ->orderBy('created_at', 'DESC')
+    ->offset(($page - 1) * $perPage)
+    ->limit($perPage)
+    ->get();
+```
+
+### Search with Multiple Conditions
+
+```php
+$users = User::query()
+    ->where('status', 'active')
+    ->where('role', 'IN', ['admin', 'moderator'])
+    ->whereNotNull('email_verified_at')
+    ->orderBy('last_login', 'DESC')
+    ->limit(50)
+    ->get();
+```
+
+### Join with Conditions
+
+```php
+$users = User::query()
+    ->leftJoin('posts', 'users.id', '=', 'posts.user_id')
+    ->where('posts.status', 'published')
+    ->groupBy('users.id')
+    ->having('post_count', '>', 5)
+    ->get();
+```
+
+## Error Handling
+
+### Invalid Column
+
+```php
+try {
+    User::query()
+        ->where('invalid_column', 'value')
+        ->get();
+} catch (InvalidArgumentException $e) {
+    // Column 'invalid_column' does not exist in table 'users'
+}
+```
+
+### Invalid Operator
+
+```php
+try {
+    User::query()
+        ->where('status', 'INVALID', 'active')
+        ->get();
+} catch (InvalidArgumentException $e) {
+    // Invalid operator: INVALID
+}
+```
+
+## Cross-Database Compatibility
+
+The query builder automatically handles differences between database systems:
+
+- **LIMIT/OFFSET**: Uses `LIMIT`/`OFFSET` for MySQL/PostgreSQL/SQLite, `OFFSET FETCH` for SQL Server
+- **String comparison**: Uses `LIKE` for MySQL/SQLite, `ILIKE` available for PostgreSQL
+- **Auto-quoting**: Properly quotes identifiers for each database system
+
+## Best Practices
+
+<Check>
+  **Validate column names** - The query builder validates columns against the table schema
+</Check>
+
+<Check>
+  **Use parameter binding** - All values are automatically bound to prevent SQL injection
+</Check>
+
+<Check>
+  **Chain methods** - Build complex queries by chaining multiple methods
+</Check>
+
+<Check>
+  **Use indexes** - Add database indexes on columns used in WHERE and JOIN clauses
+</Check>
+
+<Warning>
+  **Avoid N+1 queries** - Use eager loading for relationships (see [Relationships](/database/relationships))
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="cube" href="/database/models">
+    Learn about model methods that use the query builder
+  </Card>
+  
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Query related models efficiently
+  </Card>
+</CardGroup>

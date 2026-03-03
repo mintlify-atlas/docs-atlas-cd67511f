@@ -1,0 +1,598 @@
+---
+title: Relationships
+description: Define and work with model relationships in Aeros
+---
+
+## Overview
+
+Aeros supports model relationships through pivot tables, allowing you to define connections between different models. All relationships use a pivot table approach with automatic table name detection.
+
+## Relationship Types
+
+Aeros provides five relationship types:
+
+<CardGroup cols={2}>
+  <Card title="HasOne" icon="link">
+    One-to-one relationship through pivot table
+  </Card>
+  
+  <Card title="HasMany" icon="link-horizontal">
+    One-to-many relationship through pivot table
+  </Card>
+  
+  <Card title="BelongsTo" icon="arrow-left">
+    Inverse relationship through pivot table
+  </Card>
+  
+  <Card title="BelongsToMany" icon="arrows-cross">
+    Many-to-many relationship with pivot table
+  </Card>
+  
+  <Card title="HasManyThrough" icon="diagram-project">
+    Relationship through intermediate model
+  </Card>
+</CardGroup>
+
+## HasOne
+
+Define a one-to-one relationship where a model has one related record.
+
+### Defining HasOne
+
+```php
+namespace App\Models;
+
+use Aeros\Src\Classes\Model;
+
+class User extends Model
+{
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+}
+```
+
+### Using HasOne
+
+```php
+$user = User::find(1);
+
+// Get related profile
+$profile = $user->profile()->first();
+
+// With constraints
+$profile = $user->profile()
+    ->where('status', 'active')
+    ->first();
+
+// Eager loading
+$user = User::with('profile')->find(1);
+echo $user->profile->bio;
+```
+
+### Auto-Detection
+
+The relationship automatically:
+- Detects pivot table name (e.g., `profile_user`)
+- Detects foreign keys (e.g., `user_id`, `profile_id`)
+- Uses alphabetical ordering for table name
+
+## HasMany
+
+Define a one-to-many relationship where a model has multiple related records.
+
+### Defining HasMany
+
+```php
+class User extends Model
+{
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+}
+```
+
+### Using HasMany
+
+```php
+$user = User::find(1);
+
+// Get all posts
+$posts = $user->posts()->get();
+
+foreach ($posts as $post) {
+    echo $post->title;
+}
+
+// With constraints
+$publishedPosts = $user->posts()
+    ->where('status', 'published')
+    ->orderBy('created_at', 'DESC')
+    ->get();
+
+// Limit results
+$recentPosts = $user->posts()
+    ->limit(5)
+    ->get();
+```
+
+### Method Chaining
+
+```php
+// Complex query on relationship
+$posts = $user->posts()
+    ->where('status', 'published')
+    ->where('views', '>', 1000)
+    ->orderBy('created_at', 'DESC')
+    ->limit(10)
+    ->get();
+
+// Count related records
+$count = $user->posts()->count();
+
+// Check existence
+$hasPosts = $user->posts()->exists();
+```
+
+## BelongsTo
+
+Define an inverse relationship where a model belongs to a parent model.
+
+### Defining BelongsTo
+
+```php
+class Post extends Model
+{
+    public function author()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+### Using BelongsTo
+
+```php
+$post = Post::find(1);
+
+// Get the author
+$author = $post->author()->first();
+
+echo $author->name;
+
+// Eager loading
+$post = Post::with('author')->find(1);
+echo $post->author->name;
+```
+
+## BelongsToMany
+
+Define a many-to-many relationship where models can be related to multiple records.
+
+### Defining BelongsToMany
+
+```php
+class User extends Model
+{
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+}
+
+class Role extends Model
+{
+    public function users()
+    {
+        return $this->belongsToMany(User::class);
+    }
+}
+```
+
+### Pivot Table Convention
+
+Pivot tables follow alphabetical naming:
+
+```php
+// User + Role → role_user (alphabetical order)
+// Post + Tag → post_tag
+// Category + Product → category_product
+```
+
+### Using BelongsToMany
+
+```php
+$user = User::find(1);
+
+// Get all roles
+$roles = $user->roles()->get();
+
+foreach ($roles as $role) {
+    echo $role->name;
+}
+
+// With constraints
+$activeRoles = $user->roles()
+    ->where('active', true)
+    ->get();
+```
+
+### Attaching & Detaching
+
+```php
+$user = User::find(1);
+
+// Attach roles (create relationships)
+$user->roles()->attach([1, 2, 3]);
+
+// Attach with pivot data
+$user->roles()->attach([1], ['expires_at' => '2024-12-31']);
+
+// Detach specific roles
+$user->roles()->detach([2]);
+
+// Detach all roles
+$user->roles()->detach();
+
+// Sync roles (replace all)
+$user->roles()->sync([1, 3, 4]);
+
+// Toggle roles
+$result = $user->roles()->toggle([1, 2]);
+// Returns: ['attached' => [2], 'detached' => [1]]
+```
+
+### Pivot Data
+
+Access additional pivot table columns:
+
+```php
+$roles = $user->roles()
+    ->withPivot(['created_at', 'expires_at'])
+    ->get();
+
+foreach ($roles as $role) {
+    echo $role->name;
+    echo $role->pivot->created_at;
+    echo $role->pivot->expires_at;
+}
+```
+
+## HasManyThrough
+
+Define a relationship through an intermediate model.
+
+### Example Schema
+
+```
+countries
+  - id
+  - name
+
+users
+  - id
+  - country_id
+  - name
+
+posts
+  - id
+  - user_id
+  - title
+
+// Country → Users → Posts
+```
+
+### Defining HasManyThrough
+
+```php
+class Country extends Model
+{
+    public function posts()
+    {
+        return $this->hasManyThrough(
+            Post::class,    // Final model
+            User::class     // Intermediate model
+        );
+    }
+}
+```
+
+### Using HasManyThrough
+
+```php
+$country = Country::find(1);
+
+// Get all posts from this country
+$posts = $country->posts()->get();
+
+foreach ($posts as $post) {
+    echo $post->title;
+}
+
+// With constraints
+$publishedPosts = $country->posts()
+    ->where('status', 'published')
+    ->get();
+```
+
+### Custom Keys
+
+```php
+public function posts()
+{
+    return $this->hasManyThrough(
+        Post::class,
+        User::class,
+        'country_id',      // Foreign key on users table
+        'user_id',         // Foreign key on posts table
+        'id',              // Local key on countries table
+        'id'               // Local key on users table
+    );
+}
+```
+
+## Relationship Methods
+
+All relationships support these chainable methods:
+
+<ResponseField name="where()" type="self">
+  Add WHERE constraint
+  ```php
+  $user->posts()->where('status', 'published')
+  ```
+</ResponseField>
+
+<ResponseField name="orWhere()" type="self">
+  Add OR WHERE constraint
+  ```php
+  $user->posts()->orWhere('featured', true)
+  ```
+</ResponseField>
+
+<ResponseField name="orderBy()" type="self">
+  Add ORDER BY clause
+  ```php
+  $user->posts()->orderBy('created_at', 'DESC')
+  ```
+</ResponseField>
+
+<ResponseField name="limit()" type="self">
+  Limit results
+  ```php
+  $user->posts()->limit(10)
+  ```
+</ResponseField>
+
+<ResponseField name="offset()" type="self">
+  Skip results
+  ```php
+  $user->posts()->offset(20)
+  ```
+</ResponseField>
+
+<ResponseField name="take()" type="self">
+  Alias for limit()
+  ```php
+  $user->posts()->take(5)
+  ```
+</ResponseField>
+
+<ResponseField name="get()" type="array|Model|null">
+  Execute query and get results
+  ```php
+  $posts = $user->posts()->get()
+  ```
+</ResponseField>
+
+<ResponseField name="first()" type="Model|null">
+  Get first result
+  ```php
+  $post = $user->posts()->first()
+  ```
+</ResponseField>
+
+<ResponseField name="count()" type="int">
+  Count related records
+  ```php
+  $count = $user->posts()->count()
+  ```
+</ResponseField>
+
+<ResponseField name="exists()" type="bool">
+  Check if any related records exist
+  ```php
+  $hasPosts = $user->posts()->exists()
+  ```
+</ResponseField>
+
+## Eager Loading
+
+Prevent N+1 query problems by eager loading relationships.
+
+### Basic Eager Loading
+
+```php
+// ❌ N+1 Problem (1 + N queries)
+$users = User::query()->get();
+foreach ($users as $user) {
+    echo $user->profile->bio;  // Separate query for each user
+}
+
+// ✅ Eager Loading (2 queries)
+$users = User::with('profile')->query()->get();
+foreach ($users as $user) {
+    echo $user->profile->bio;  // No additional query
+}
+```
+
+### Multiple Relationships
+
+```php
+$users = User::with(['profile', 'posts', 'roles'])
+    ->query()
+    ->get();
+
+foreach ($users as $user) {
+    echo $user->profile->bio;
+    echo count($user->posts);
+    echo $user->roles[0]->name;
+}
+```
+
+### Lazy Loading
+
+Load relationships after fetching the model:
+
+```php
+$user = User::find(1);
+
+// Load if not already loaded
+$user->load('posts');
+
+// Reload even if loaded
+$user->reload('posts');
+
+// Load multiple
+$user->loadMany(['posts', 'roles']);
+```
+
+## Custom Pivot Tables
+
+Override auto-detected pivot table names:
+
+```php
+public function roles()
+{
+    return $this->belongsToMany(
+        Role::class,
+        'user_role_assignments',  // Custom pivot table
+        'user_id',                // Foreign key
+        'role_id'                 // Related key
+    );
+}
+```
+
+## Relationship Examples
+
+### Blog System
+
+```php
+class User extends Model
+{
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+    
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+}
+
+class Post extends Model
+{
+    public function author()
+    {
+        return $this->belongsTo(User::class);
+    }
+    
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class);
+    }
+    
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+}
+```
+
+### E-commerce
+
+```php
+class Customer extends Model
+{
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+    
+    public function address()
+    {
+        return $this->hasOne(Address::class);
+    }
+}
+
+class Product extends Model
+{
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class);
+    }
+    
+    public function orders()
+    {
+        return $this->belongsToMany(Order::class)
+            ->withPivot(['quantity', 'price']);
+    }
+}
+```
+
+## Best Practices
+
+<Check>
+  **Use eager loading** to prevent N+1 queries
+</Check>
+
+<Check>
+  **Name relationships descriptively** (e.g., `author()` instead of `user()`)
+</Check>
+
+<Check>
+  **Add constraints** to relationships when needed
+</Check>
+
+<Check>
+  **Use pivot data** for many-to-many relationships with additional info
+</Check>
+
+<Warning>
+  **Create pivot tables** with proper indexes on foreign key columns
+</Warning>
+
+<Warning>
+  **Clear cached relationships** after attach/detach operations
+</Warning>
+
+## Database Schema
+
+Pivot tables should follow this structure:
+
+```sql
+CREATE TABLE role_user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(role_id, user_id)
+);
+
+CREATE INDEX idx_role_user_role_id ON role_user(role_id);
+CREATE INDEX idx_role_user_user_id ON role_user(user_id);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="cube" href="/database/models">
+    Learn more about model features
+  </Card>
+  
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Build complex queries on relationships
+  </Card>
+</CardGroup>

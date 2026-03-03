@@ -1,0 +1,266 @@
+---
+title: Database Commands
+description: Commands for managing database migrations, seeders, and setup
+---
+
+Aeros uses [Phinx](https://phinx.org/) for database migrations and seeding. The CLI provides convenient wrapper commands for common database operations.
+
+## db:migrate
+
+Runs all pending database migrations.
+
+```bash
+php aeros db:migrate
+```
+
+**Options:**
+- `--environment=<env>` - Specify the environment (development, staging, production)
+- `--withSeeds` - Run all seeders after migrations
+- `--seed=<seeder>` - Run specific seeders (can be used multiple times)
+
+**Examples:**
+
+<CodeGroup>
+```bash Basic Migration
+php aeros db:migrate
+# Runs all pending migrations
+```
+
+```bash With Seeders
+php aeros db:migrate --withSeeds
+# Runs migrations then all seeders
+```
+
+```bash Specific Environment
+php aeros db:migrate --environment=production
+# Runs migrations in production environment
+```
+
+```bash Specific Seeders
+php aeros db:migrate --seed=UserSeeder --seed=ProductSeeder
+# Runs migrations then specific seeders
+```
+</CodeGroup>
+
+<Info>
+The `db:migrate` command automatically creates the `app/Database/migrations/` and `app/Database/seeds/` directories if they don't exist.
+</Info>
+
+## run:database
+
+Sets up and creates database environments. This command is useful for initial database configuration.
+
+```bash
+php aeros run:database
+```
+
+**Options:**
+- `-c, --create` - Create the database
+- `-e, --seed` - Seed the database after creation
+- `-d, --development=<name>` - Create development database with specified name
+- `-s, --staging=<name>` - Create staging database with specified name
+- `-p, --production=<name>` - Create production database with specified name
+- `-a, --all` - Create all environment databases (prompts for base name)
+
+**Examples:**
+
+<CodeGroup>
+```bash Development Database
+php aeros run:database --create --development=myapp_dev
+# Creates development database and updates .env
+```
+
+```bash All Environments
+php aeros run:database --create --all
+# Prompts: "Enter your database name:"
+# Creates: myapp_production, myapp_staging, myapp
+```
+
+```bash With Seeding
+php aeros run:database --create --all --seed
+# Creates all databases and runs seeders
+```
+</CodeGroup>
+
+### Supported Database Drivers
+
+The command supports multiple database systems:
+
+<AccordionGroup>
+  <Accordion title="MySQL/MariaDB">
+    ```bash
+    # Creates database with:
+    CREATE DATABASE IF NOT EXISTS `database_name`
+    ```
+  </Accordion>
+  
+  <Accordion title="PostgreSQL">
+    ```bash
+    # Checks if database exists, then creates:
+    CREATE DATABASE "database_name"
+    ```
+  </Accordion>
+  
+  <Accordion title="SQLite">
+    ```bash
+    # Database file created automatically on connection
+    ```
+  </Accordion>
+  
+  <Accordion title="SQL Server">
+    ```bash
+    # Creates database with:
+    IF NOT EXISTS (SELECT name FROM sys.databases 
+      WHERE name = N'database_name') 
+    CREATE DATABASE [database_name]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Configuration Updates
+
+The `run:database` command automatically:
+
+1. Updates `.env` file with `DB_DATABASE` value
+2. Creates `phinx.json` if it doesn't exist
+3. Updates `phinx.json` with environment-specific database names
+
+<Warning>
+If the database already exists, the command will display a warning but won't overwrite it.
+</Warning>
+
+## Creating Migrations and Seeders
+
+While you can use Phinx commands directly, Aeros provides convenient make commands:
+
+### Create Migration
+
+```bash
+php aeros make:migration CreateUsersTable
+```
+
+See [make:migration](/cli/make-commands) for more details.
+
+### Create Seeder
+
+```bash
+php aeros make:seed UserSeeder
+```
+
+See [make:seed](/cli/make-commands) for more details.
+
+### Combined Approach
+
+You can create both a migration and seeder in one command:
+
+```bash
+php aeros make:migration CreatePostsTable --seeder=PostSeeder
+```
+
+## Database Workflow
+
+Here's a typical database workflow when starting a new Aeros project:
+
+<Steps>
+  <Step title="Configure Database">
+    Set up your database connection in `.env`:
+    ```bash
+    DB_CONNECTION=mysql
+    DB_HOST=localhost
+    DB_PORT=3306
+    DB_DATABASE=aeros_app
+    DB_USERNAME=root
+    DB_PASSWORD=secret
+    ```
+  </Step>
+  
+  <Step title="Create Database">
+    Use `run:database` to create your databases:
+    ```bash
+    php aeros run:database --create --all
+    ```
+  </Step>
+  
+  <Step title="Create Migrations">
+    Generate migration files for your tables:
+    ```bash
+    php aeros make:migration CreateUsersTable
+    php aeros make:migration CreatePostsTable
+    ```
+  </Step>
+  
+  <Step title="Edit Migrations">
+    Customize the generated migration files in `app/Database/migrations/`
+  </Step>
+  
+  <Step title="Run Migrations">
+    Execute your migrations:
+    ```bash
+    php aeros db:migrate
+    ```
+  </Step>
+  
+  <Step title="Create Seeders (Optional)">
+    Generate seeder files:
+    ```bash
+    php aeros make:seed UserSeeder
+    ```
+  </Step>
+  
+  <Step title="Run Seeders (Optional)">
+    Populate your database:
+    ```bash
+    php aeros db:migrate --withSeeds
+    ```
+  </Step>
+</Steps>
+
+## Direct Phinx Usage
+
+You can also use Phinx commands directly if needed:
+
+```bash
+# Rollback last migration
+./vendor/bin/phinx rollback
+
+# View migration status
+./vendor/bin/phinx status
+
+# Run specific seeder
+./vendor/bin/phinx seed:run -s UserSeeder
+```
+
+<Info>
+Refer to the [Phinx documentation](https://book.cakephp.org/phinx/0/en/index.html) for advanced migration features.
+</Info>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Migration directory not found">
+    The `db:migrate` command automatically creates missing directories. If you see this error, ensure your application has write permissions.
+  </Accordion>
+  
+  <Accordion title="Database connection failed">
+    Verify your `.env` database configuration and ensure the database server is running.
+  </Accordion>
+  
+  <Accordion title="phinx.json missing">
+    Run `php aeros run:database -c -a` to generate the configuration file.
+  </Accordion>
+  
+  <Accordion title="Permission denied creating database">
+    Ensure your database user has `CREATE DATABASE` privileges.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Commands" icon="hammer" href="/cli/make-commands">
+    Learn about scaffolding migrations and seeders
+  </Card>
+  <Card title="Database Usage" icon="code">
+    Learn how to use the database in your application
+  </Card>
+</CardGroup>

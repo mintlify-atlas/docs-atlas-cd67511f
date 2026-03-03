@@ -1,0 +1,473 @@
+---
+title: Model
+description: Base model class for database operations and relationships
+---
+
+The `Model` class provides an elegant ORM (Object-Relational Mapping) for interacting with your database. Each database table has a corresponding Model which is used to interact with that table.
+
+## Defining models
+
+Create a model by extending the base `Model` class:
+
+```php
+use Aeros\Src\Classes\Model;
+
+class User extends Model
+{
+    protected $table = 'users';
+    protected $primary = 'id';
+    protected $fillable = ['name', 'email', 'password'];
+    protected $guarded = ['id', 'created_at'];
+}
+```
+
+### Properties
+
+<ParamField path="table" type="string">
+  The database table associated with the model
+</ParamField>
+
+<ParamField path="primary" type="string" default="id">
+  The primary key column name
+</ParamField>
+
+<ParamField path="fillable" type="array" default="[]">
+  Columns that are mass assignable
+</ParamField>
+
+<ParamField path="guarded" type="array" default="[]">
+  Columns that are protected from mass assignment
+</ParamField>
+
+## Retrieving models
+
+### find()
+
+Find a single record or multiple records by filter criteria.
+
+```php
+// Find by ID
+$user = User::find(1);
+
+// Find by single condition
+$user = User::find([['email', '=', 'john@example.com']]);
+
+// Find with multiple conditions
+$users = User::find([
+    ['status', '=', 'active'],
+    ['role', '=', 'admin', 'OR'],
+    ['role', '=', 'moderator']
+]);
+
+// Find with specific columns
+$user = User::find(1, ['id', 'name', 'email']);
+```
+
+<ParamField path="filter" type="int|array" required>
+  ID or array of filter conditions
+</ParamField>
+
+<ParamField path="columns" type="array" default="null">
+  Specific columns to retrieve (defaults to all)
+</ParamField>
+
+<ResponseField name="return" type="Model|array|null">
+  Returns Model instance, array of Models, or null if not found
+</ResponseField>
+
+## Creating models
+
+### create()
+
+Create a new record in the database.
+
+```php
+$user = User::create([
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'password' => password_hash('secret', PASSWORD_DEFAULT)
+]);
+```
+
+<ParamField path="newValues" type="array" required>
+  Associative array of column names and values
+</ParamField>
+
+<ResponseField name="return" type="Model">
+  Returns the newly created Model instance
+</ResponseField>
+
+### createMany()
+
+Insert multiple records at once.
+
+```php
+$users = User::createMany([
+    ['name' => 'John', 'email' => 'john@example.com'],
+    ['name' => 'Jane', 'email' => 'jane@example.com'],
+    ['name' => 'Bob', 'email' => 'bob@example.com']
+]);
+```
+
+<ParamField path="records" type="array" required>
+  Array of associative arrays representing records
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Returns array of created Model instances
+</ResponseField>
+
+## Updating models
+
+### update()
+
+Update one or more records.
+
+```php
+// Update specific records
+User::update(
+    ['status' => 'inactive'],
+    [['last_login', '<', '2023-01-01']]
+);
+
+// Update instance
+$user = User::find(1);
+$user->name = 'Updated Name';
+$user->update()->commit();
+```
+
+<ParamField path="updatedValues" type="array" default="[]">
+  Array of column values to update
+</ParamField>
+
+<ParamField path="where" type="array" default="[]">
+  Filter conditions for which records to update
+</ParamField>
+
+<ResponseField name="return" type="Model">
+  Returns Model instance for method chaining
+</ResponseField>
+
+### save()
+
+Save changes to an existing model instance.
+
+```php
+$user = User::find(1);
+$user->email = 'newemail@example.com';
+$user->save();
+```
+
+<ResponseField name="return" type="mixed">
+  Returns result of the save operation
+</ResponseField>
+
+## Deleting models
+
+### delete()
+
+Delete one or more records.
+
+```php
+// Delete by condition
+User::delete([['status', '=', 'banned']])->commit();
+
+// Delete instance
+$user = User::find(1);
+$user->delete()->commit();
+```
+
+<ParamField path="where" type="array" default="[]">
+  Filter conditions for records to delete
+</ParamField>
+
+<ResponseField name="return" type="Model">
+  Returns Model instance for method chaining
+</ResponseField>
+
+## Committing changes
+
+### commit()
+
+Execute pending insert, update, or delete operations.
+
+```php
+$user = User::create(['name' => 'John']);
+// Record is automatically committed
+
+$user->update(['name' => 'Jane'])->commit();
+User::delete([['id', '=', 5]])->commit();
+```
+
+<ResponseField name="return" type="mixed">
+  Returns result of the database operation
+</ResponseField>
+
+## Relationships
+
+### hasOne()
+
+Define a one-to-one relationship.
+
+```php
+class User extends Model
+{
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+}
+
+// Usage
+$profile = $user->profile()->first();
+```
+
+<ParamField path="relatedModel" type="string" required>
+  Related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" default="null">
+  Foreign key on related table (auto-detected if null)
+</ParamField>
+
+<ParamField path="localKey" type="string" default="null">
+  Local key on parent table (auto-detected if null)
+</ParamField>
+
+<ResponseField name="return" type="HasOne">
+  Returns HasOne relationship instance
+</ResponseField>
+
+### hasMany()
+
+Define a one-to-many relationship.
+
+```php
+class User extends Model
+{
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+}
+
+// Usage
+$posts = $user->posts()->get();
+$activePosts = $user->posts()->where('status', 'published')->get();
+```
+
+<ParamField path="relatedModel" type="string" required>
+  Related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" default="null">
+  Foreign key on related table (auto-detected if null)
+</ParamField>
+
+<ParamField path="localKey" type="string" default="null">
+  Local key on parent table (auto-detected if null)
+</ParamField>
+
+<ResponseField name="return" type="HasMany">
+  Returns HasMany relationship instance
+</ResponseField>
+
+### belongsTo()
+
+Define an inverse relationship.
+
+```php
+class Post extends Model
+{
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+
+// Usage
+$user = $post->user()->first();
+```
+
+<ParamField path="relatedModel" type="string" required>
+  Related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" default="null">
+  Foreign key on parent table (auto-detected if null)
+</ParamField>
+
+<ParamField path="ownerKey" type="string" default="null">
+  Owner key on related table (auto-detected if null)
+</ParamField>
+
+<ResponseField name="return" type="BelongsTo">
+  Returns BelongsTo relationship instance
+</ResponseField>
+
+### belongsToMany()
+
+Define a many-to-many relationship using a pivot table.
+
+```php
+class User extends Model
+{
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+}
+
+// Usage
+$roles = $user->roles()->get();
+$user->roles()->attach([1, 2, 3]);
+$user->roles()->detach([2]);
+$user->roles()->sync([1, 3, 4]);
+```
+
+<ParamField path="relatedModel" type="string" required>
+  Related model class name
+</ParamField>
+
+<ParamField path="pivotTable" type="string" default="null">
+  Pivot table name (auto-detected if null)
+</ParamField>
+
+<ParamField path="foreignPivotKey" type="string" default="null">
+  Foreign pivot key (auto-detected if null)
+</ParamField>
+
+<ParamField path="relatedPivotKey" type="string" default="null">
+  Related pivot key (auto-detected if null)
+</ParamField>
+
+<ParamField path="localKey" type="string" default="null">
+  Local key on parent table (auto-detected if null)
+</ParamField>
+
+<ParamField path="relatedKey" type="string" default="null">
+  Related key on related table (auto-detected if null)
+</ParamField>
+
+<ResponseField name="return" type="BelongsToMany">
+  Returns BelongsToMany relationship instance
+</ResponseField>
+
+### hasManyThrough()
+
+Define a has-many-through relationship.
+
+```php
+class Country extends Model
+{
+    public function posts()
+    {
+        return $this->hasManyThrough(Post::class, User::class);
+    }
+}
+
+// Usage
+$posts = $country->posts()->get();
+```
+
+<ParamField path="relatedModel" type="string" required>
+  Final related model class name
+</ParamField>
+
+<ParamField path="throughModel" type="string" required>
+  Intermediate model class name
+</ParamField>
+
+<ParamField path="firstKey" type="string" default="null">
+  First foreign key (auto-detected if null)
+</ParamField>
+
+<ParamField path="secondKey" type="string" default="null">
+  Second foreign key (auto-detected if null)
+</ParamField>
+
+<ParamField path="localKey" type="string" default="null">
+  Local key on parent table (auto-detected if null)
+</ParamField>
+
+<ParamField path="secondLocalKey" type="string" default="null">
+  Local key on intermediate table (auto-detected if null)
+</ParamField>
+
+<ResponseField name="return" type="HasManyThrough">
+  Returns HasManyThrough relationship instance
+</ResponseField>
+
+## Utility methods
+
+### getPrimaryKey()
+
+Get the primary key name for the model.
+
+```php
+$primaryKey = $user->getPrimaryKey(); // 'id'
+```
+
+<ResponseField name="return" type="string">
+  Returns the primary key column name
+</ResponseField>
+
+### getTableNameFromModel()
+
+Get the database table name for the model.
+
+```php
+$tableName = $user->getTableNameFromModel(); // 'users'
+```
+
+<ResponseField name="return" type="string">
+  Returns the table name
+</ResponseField>
+
+## Examples
+
+### Complete model with relationships
+
+```php
+class User extends Model
+{
+    protected $table = 'users';
+    protected $primary = 'id';
+    protected $fillable = ['name', 'email', 'password'];
+    protected $guarded = ['id', 'created_at'];
+
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+}
+```
+
+### Working with relationships
+
+```php
+// Get user with posts
+$user = User::find(1);
+$posts = $user->posts()->get();
+
+// Filter related records
+$publishedPosts = $user->posts()
+    ->where('status', 'published')
+    ->get();
+
+// Attach roles
+$user->roles()->attach([1, 2, 3]);
+
+// Sync roles (removes old, adds new)
+$user->roles()->sync([2, 3, 4]);
+```
